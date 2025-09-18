@@ -96,7 +96,7 @@ function createTeamMember($db) {
     try {
         $stmt = $db->prepare("
             INSERT INTO team_members (project_id, name, role, hourly_rate) 
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?) RETURNING id
         ");
         $stmt->execute([
             $input['project_id'],
@@ -105,7 +105,7 @@ function createTeamMember($db) {
             $input['hourly_rate']
         ]);
         
-        $memberId = $db->lastInsertId();
+        $memberId = $stmt->fetchColumn();
         sendSuccessResponse(['id' => $memberId, 'message' => 'Team member added successfully']);
     } catch (PDOException $e) {
         sendErrorResponse('Failed to add team member: ' . $e->getMessage());

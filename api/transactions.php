@@ -136,7 +136,7 @@ function createTransaction($db) {
     try {
         $stmt = $db->prepare("
             INSERT INTO transactions (project_id, type, description, amount, transaction_date) 
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?) RETURNING id
         ");
         $stmt->execute([
             $input['project_id'],
@@ -146,7 +146,7 @@ function createTransaction($db) {
             $input['transaction_date'] ?? date('Y-m-d')
         ]);
         
-        $transactionId = $db->lastInsertId();
+        $transactionId = $stmt->fetchColumn();
         sendSuccessResponse(['id' => $transactionId, 'message' => 'Transaction created successfully']);
     } catch (PDOException $e) {
         sendErrorResponse('Failed to create transaction: ' . $e->getMessage());

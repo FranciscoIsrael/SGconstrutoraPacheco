@@ -99,7 +99,7 @@ function createMaterial($db) {
     try {
         $stmt = $db->prepare("
             INSERT INTO materials (project_id, name, quantity, unit, cost) 
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?) RETURNING id
         ");
         $stmt->execute([
             $input['project_id'],
@@ -109,7 +109,7 @@ function createMaterial($db) {
             $input['cost']
         ]);
         
-        $materialId = $db->lastInsertId();
+        $materialId = $stmt->fetchColumn();
         sendSuccessResponse(['id' => $materialId, 'message' => 'Material created successfully']);
     } catch (PDOException $e) {
         sendErrorResponse('Failed to create material: ' . $e->getMessage());

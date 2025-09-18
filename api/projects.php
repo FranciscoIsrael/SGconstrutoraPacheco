@@ -100,7 +100,7 @@ function createProject($db) {
     try {
         $stmt = $db->prepare("
             INSERT INTO projects (name, address, deadline, budget, manager) 
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?) RETURNING id
         ");
         $stmt->execute([
             sanitizeInput($input['name']),
@@ -110,7 +110,7 @@ function createProject($db) {
             sanitizeInput($input['manager'])
         ]);
         
-        $projectId = $db->lastInsertId();
+        $projectId = $stmt->fetchColumn();
         sendSuccessResponse(['id' => $projectId, 'message' => 'Project created successfully']);
     } catch (PDOException $e) {
         sendErrorResponse('Failed to create project: ' . $e->getMessage());
