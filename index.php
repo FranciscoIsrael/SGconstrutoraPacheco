@@ -172,5 +172,6 @@ session_start();
     <div id="modal-container"></div>
 
     <script src="assets/js/app.js"></script>
+    <script src="assets/js/project-functions.js"></script>
 </body>
 </html>
