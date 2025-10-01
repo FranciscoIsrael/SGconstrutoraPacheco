@@ -1,96 +1,63 @@
-// Construction Management System - Main JavaScript Application
-class ConstructionApp {
-    constructor() {
-        this.currentSection = 'dashboard';
-        this.currentProject = null;
-        this.projects = [];
-        this.materials = [];
-        this.transactions = [];
-        this.teamMembers = [];
-        
-        this.init();
-    }
-
+// Construction Management System - Main App JavaScript
+const app = {
+    projects: [],
+    currentProject: null,
+    currentSection: 'dashboard',
+    
     init() {
-        this.setupEventListeners();
-        this.loadDashboardData();
-    }
+        this.setupNavigation();
+        this.loadProjects();
+        this.updateDashboardStats();
+    },
 
-    setupEventListeners() {
-        // Navigation
-        document.querySelectorAll('.nav-link').forEach(link => {
+    setupNavigation() {
+        const navLinks = document.querySelectorAll('.nav-link');
+        navLinks.forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
-                const section = link.getAttribute('data-section');
+                const section = link.dataset.section;
                 this.showSection(section);
+                
+                navLinks.forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
             });
         });
+    },
 
-        // Project selection dropdowns
-        const projectSelects = ['project-select-materials', 'project-select-financial', 'project-select-team'];
-        projectSelects.forEach(selectId => {
-            const select = document.getElementById(selectId);
-            if (select) {
-                select.addEventListener('change', (e) => {
-                    this.currentProject = e.target.value;
-                    this.handleProjectSelection(selectId, e.target.value);
-                });
-            }
-        });
-
-        // Close modal when clicking outside
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal')) {
-                this.closeModal();
-            }
-        });
-    }
-
-    showSection(section) {
-        // Update navigation
-        document.querySelectorAll('.nav-link').forEach(link => {
-            link.classList.remove('active');
-        });
-        document.querySelector(`[data-section="${section}"]`).classList.add('active');
-
-        // Update content
+    showSection(sectionName) {
         document.querySelectorAll('.content-section').forEach(section => {
             section.classList.remove('active');
         });
-        document.getElementById(section).classList.add('active');
-
-        this.currentSection = section;
-
-        // Load section-specific data
-        switch (section) {
-            case 'dashboard':
-                this.loadDashboardData();
-                break;
-            case 'projects':
-                this.loadProjects();
-                break;
-            case 'materials':
-                this.loadProjectDropdown('project-select-materials');
-                break;
-            case 'financial':
-                this.loadProjectDropdown('project-select-financial');
-                break;
-            case 'team':
-                this.loadProjectDropdown('project-select-team');
-                break;
+        
+        const targetSection = document.getElementById(sectionName);
+        if (targetSection) {
+            targetSection.classList.add('active');
+            this.currentSection = sectionName;
+            
+            switch(sectionName) {
+                case 'dashboard':
+                    this.updateDashboardStats();
+                    this.displayRecentProjects();
+                    break;
+                case 'projects':
+                    this.displayAllProjects();
+                    break;
+                case 'materials':
+                    this.loadProjectSelects('materials');
+                    break;
+                case 'financial':
+                    this.loadProjectSelects('financial');
+                    break;
+                case 'team':
+                    this.loadProjectSelects('team');
+                    break;
+                case 'inventory':
+                    this.loadInventory();
+                    this.updateInventoryStats();
+                    break;
+            }
         }
-    }
-
-    async loadDashboardData() {
-        try {
-            await this.loadProjects();
-            this.updateDashboardStats();
-            this.displayRecentProjects();
-        } catch (error) {
-            console.error('Error loading dashboard data:', error);
-            this.showAlert('Erro ao carregar dados do dashboard', 'error');
-        }
-    }
+    },
 
     async loadProjects() {
         try {
@@ -99,152 +66,140 @@ class ConstructionApp {
             
             if (result.success) {
                 this.projects = result.data;
-                if (this.currentSection === 'projects') {
-                    this.displayAllProjects();
-                }
-                return this.projects;
-            } else {
-                throw new Error(result.error || 'Failed to load projects');
+                this.loadProjectSelects();
             }
         } catch (error) {
             console.error('Error loading projects:', error);
-            this.showAlert('Erro ao carregar obras', 'error');
-            return [];
         }
-    }
+    },
 
-    updateDashboardStats() {
-        const totalProjects = this.projects.length;
-        const totalBudget = this.projects.reduce((sum, project) => sum + parseFloat(project.budget || 0), 0);
-        const totalSpent = this.projects.reduce((sum, project) => sum + parseFloat(project.total_spent || 0), 0);
-        const totalTeam = this.projects.reduce((sum, project) => sum + parseInt(project.team_count || 0), 0);
+    loadProjectSelects(module = null) {
+        const selects = module ? 
+            [`#project-select-${module}`] : 
+            ['#project-select-materials', '#project-select-financial', '#project-select-team'];
+        
+        selects.forEach(selector => {
+            const select = document.querySelector(selector);
+            if (select) {
+                select.innerHTML = '<option value="">Selecione uma obra</option>';
+                this.projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.id;
+                    option.textContent = project.name;
+                    select.appendChild(option);
+                });
+                
+                select.addEventListener('change', (e) => {
+                    const projectId = e.target.value;
+                    this.currentProject = projectId;
+                    
+                    if (module === 'materials' || selector.includes('materials')) {
+                        const btn = document.getElementById('add-material-btn');
+                        btn.disabled = !projectId;
+                        if (projectId) this.loadMaterials(projectId);
+                    } else if (module === 'financial' || selector.includes('financial')) {
+                        const btn = document.getElementById('add-transaction-btn');
+                        btn.disabled = !projectId;
+                        if (projectId) {
+                            this.loadTransactions(projectId);
+                            this.loadFinancialSummary(projectId);
+                        }
+                    } else if (module === 'team' || selector.includes('team')) {
+                        const btn = document.getElementById('add-member-btn');
+                        btn.disabled = !projectId;
+                        if (projectId) this.loadTeamMembers(projectId);
+                    }
+                });
+            }
+        });
+    },
 
-        document.getElementById('total-projects').textContent = totalProjects;
-        document.getElementById('total-budget').textContent = this.formatCurrency(totalBudget);
-        document.getElementById('total-spent').textContent = this.formatCurrency(totalSpent);
-        document.getElementById('total-team').textContent = totalTeam;
-    }
+    async updateDashboardStats() {
+        try {
+            const response = await fetch('api/projects.php');
+            const result = await response.json();
+            
+            if (result.success) {
+                const projects = result.data;
+                const totalProjects = projects.length;
+                const totalBudget = projects.reduce((sum, p) => sum + parseFloat(p.budget || 0), 0);
+                const totalSpent = projects.reduce((sum, p) => sum + parseFloat(p.total_spent || 0), 0);
+                const totalTeam = projects.reduce((sum, p) => sum + parseInt(p.team_count || 0), 0);
+                
+                document.getElementById('total-projects').textContent = totalProjects;
+                document.getElementById('total-budget').textContent = this.formatCurrency(totalBudget);
+                document.getElementById('total-spent').textContent = this.formatCurrency(totalSpent);
+                document.getElementById('total-team').textContent = totalTeam;
+            }
+        } catch (error) {
+            console.error('Error updating stats:', error);
+        }
+    },
 
     displayRecentProjects() {
+        const container = document.getElementById('projects-list');
         const recentProjects = this.projects.slice(0, 6);
-        this.displayProjects(recentProjects, 'projects-list');
-    }
-
-    displayAllProjects() {
-        this.displayProjects(this.projects, 'all-projects-list');
-    }
-
-    displayProjects(projects, containerId) {
-        const container = document.getElementById(containerId);
         
-        if (projects.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted"><i class="fas fa-building" style="font-size: 3rem; margin-bottom: 1rem;"></i><p>Nenhuma obra cadastrada ainda.</p></div>';
+        if (recentProjects.length === 0) {
+            container.innerHTML = '<p class="text-center text-muted"><i class="fas fa-building"></i><br>Nenhuma obra cadastrada ainda.</p>';
             return;
         }
+        
+        container.innerHTML = recentProjects.map(project => this.createProjectCard(project)).join('');
+    },
 
-        container.innerHTML = projects.map(project => `
+    displayAllProjects() {
+        const container = document.getElementById('all-projects-list');
+        
+        if (this.projects.length === 0) {
+            container.innerHTML = '<p class="text-center text-muted"><i class="fas fa-building"></i><br>Nenhuma obra cadastrada ainda.</p>';
+            return;
+        }
+        
+        container.innerHTML = this.projects.map(project => this.createProjectCard(project)).join('');
+    },
+
+    createProjectCard(project) {
+        const deadline = new Date(project.deadline);
+        const budgetPercent = project.budget > 0 ? (project.total_spent / project.budget) * 100 : 0;
+        const statusClass = project.status === 'active' ? 'status-active' : 
+                           project.status === 'completed' ? 'status-completed' : 'status-paused';
+        
+        return `
             <div class="project-card">
                 <div class="project-header">
                     <div>
                         <h3 class="project-title">${project.name}</h3>
-                        <div class="project-status status-${project.status}">
-                            ${this.getStatusLabel(project.status)}
-                        </div>
+                        <span class="project-status ${statusClass}">${project.status === 'active' ? 'Ativa' : project.status === 'completed' ? 'Concluída' : 'Pausada'}</span>
                     </div>
                 </div>
+                ${project.image_path ? `<img src="${project.image_path}" alt="${project.name}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 5px; margin: 10px 0;">` : ''}
                 <div class="project-info">
                     <p><i class="fas fa-map-marker-alt"></i> ${project.address}</p>
-                    <p><i class="fas fa-calendar"></i> Prazo: ${project.deadline_formatted}</p>
-                    <p><i class="fas fa-user"></i> Responsável: ${project.manager}</p>
+                    <p><i class="fas fa-calendar"></i> Prazo: ${deadline.toLocaleDateString('pt-BR')}</p>
+                    <p><i class="fas fa-user-tie"></i> Responsável: ${project.manager}</p>
                 </div>
                 <div class="project-budget">
                     <div class="budget-item">
                         <div class="budget-label">Orçamento</div>
-                        <div class="budget-value text-info">${this.formatCurrency(project.budget)}</div>
+                        <div class="budget-value">${this.formatCurrency(project.budget)}</div>
                     </div>
                     <div class="budget-item">
                         <div class="budget-label">Gasto</div>
-                        <div class="budget-value text-warning">${this.formatCurrency(project.total_spent)}</div>
-                    </div>
-                    <div class="budget-item">
-                        <div class="budget-label">Restante</div>
-                        <div class="budget-value text-success">${this.formatCurrency(project.budget - project.total_spent)}</div>
+                        <div class="budget-value ${budgetPercent > 100 ? 'text-danger' : ''}">${this.formatCurrency(project.total_spent)}</div>
                     </div>
                 </div>
                 <div class="project-actions">
-                    <button class="btn btn-sm btn-primary" onclick="app.editProject(${project.id})">
-                        <i class="fas fa-edit"></i> Editar
+                    <button class="btn btn-sm btn-warning" onclick="app.editProject(${project.id})">
+                        <i class="fas fa-edit"></i>
                     </button>
                     <button class="btn btn-sm btn-danger" onclick="app.deleteProject(${project.id})">
-                        <i class="fas fa-trash"></i> Excluir
+                        <i class="fas fa-trash"></i>
                     </button>
                 </div>
             </div>
-        `).join('');
-    }
-
-    async loadProjectDropdown(selectId) {
-        try {
-            if (this.projects.length === 0) {
-                await this.loadProjects();
-            }
-            
-            const select = document.getElementById(selectId);
-            select.innerHTML = '<option value="">Selecione uma obra</option>' +
-                this.projects.map(project => 
-                    `<option value="${project.id}">${project.name}</option>`
-                ).join('');
-        } catch (error) {
-            console.error('Error loading project dropdown:', error);
-        }
-    }
-
-    handleProjectSelection(selectType, projectId) {
-        const buttons = {
-            'project-select-materials': 'add-material-btn',
-            'project-select-financial': 'add-transaction-btn',
-            'project-select-team': 'add-member-btn'
-        };
-
-        const button = document.getElementById(buttons[selectType]);
-        if (button) {
-            button.disabled = !projectId;
-        }
-
-        if (projectId) {
-            switch (selectType) {
-                case 'project-select-materials':
-                    this.loadMaterials(projectId);
-                    break;
-                case 'project-select-financial':
-                    this.loadTransactions(projectId);
-                    this.loadFinancialSummary(projectId);
-                    break;
-                case 'project-select-team':
-                    this.loadTeamMembers(projectId);
-                    break;
-            }
-        } else {
-            this.clearSectionContent(selectType);
-        }
-    }
-
-    clearSectionContent(selectType) {
-        const containers = {
-            'project-select-materials': 'materials-list',
-            'project-select-financial': 'transactions-list',
-            'project-select-team': 'team-list'
-        };
-
-        const containerId = containers[selectType];
-        if (containerId) {
-            document.getElementById(containerId).innerHTML = '';
-        }
-
-        if (selectType === 'project-select-financial') {
-            document.getElementById('financial-summary').innerHTML = '';
-        }
-    }
+        `;
+    },
 
     async loadMaterials(projectId) {
         try {
@@ -252,85 +207,59 @@ class ConstructionApp {
             const result = await response.json();
             
             if (result.success) {
-                this.materials = result.data;
-                this.displayMaterials();
-            } else {
-                throw new Error(result.error);
+                this.displayMaterials(result.data);
             }
         } catch (error) {
             console.error('Error loading materials:', error);
-            this.showAlert('Erro ao carregar materiais', 'error');
         }
-    }
+    },
 
-    displayMaterials() {
+    displayMaterials(materials) {
         const container = document.getElementById('materials-list');
         
-        if (this.materials.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted p-4">Nenhum material cadastrado para esta obra.</div>';
+        if (materials.length === 0) {
+            container.innerHTML = '<p class="text-center text-muted">Nenhum material cadastrado para esta obra.</p>';
             return;
         }
-
-        const totalCost = this.materials.reduce((sum, material) => sum + (material.quantity * material.cost), 0);
-
+        
+        const totalCost = materials.reduce((sum, m) => sum + (m.quantity * m.cost), 0);
+        
         container.innerHTML = `
             <table class="table">
                 <thead>
                     <tr>
+                        <th>Foto</th>
                         <th>Material</th>
                         <th>Quantidade</th>
-                        <th>Unidade</th>
                         <th>Custo Unit.</th>
-                        <th>Custo Total</th>
+                        <th>Total</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${this.materials.map(material => `
+                    ${materials.map(m => `
                         <tr>
-                            <td>${material.name}</td>
-                            <td>${material.quantity}</td>
-                            <td>${material.unit}</td>
-                            <td>${this.formatCurrency(material.cost)}</td>
-                            <td>${this.formatCurrency(material.quantity * material.cost)}</td>
+                            <td>${m.image_path ? `<img src="${m.image_path}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 5px;">` : '<i class="fas fa-box text-muted"></i>'}</td>
+                            <td>${m.name}</td>
+                            <td>${m.quantity} ${m.unit}</td>
+                            <td>${this.formatCurrency(m.cost)}</td>
+                            <td><strong>${this.formatCurrency(m.total_cost)}</strong></td>
                             <td>
-                                <button class="btn btn-sm btn-primary" onclick="app.editMaterial(${material.id})">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="app.deleteMaterial(${material.id})">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <button class="btn btn-sm btn-warning" onclick="app.editMaterial(${m.id})"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-danger" onclick="app.deleteMaterial(${m.id})"><i class="fas fa-trash"></i></button>
                             </td>
                         </tr>
                     `).join('')}
                 </tbody>
                 <tfoot>
                     <tr>
-                        <th colspan="4">Total</th>
-                        <th>${this.formatCurrency(totalCost)}</th>
-                        <th></th>
+                        <td colspan="4" class="text-right"><strong>Total:</strong></td>
+                        <td colspan="2"><strong>${this.formatCurrency(totalCost)}</strong></td>
                     </tr>
                 </tfoot>
             </table>
         `;
-    }
-
-    async loadTransactions(projectId) {
-        try {
-            const response = await fetch(`api/transactions.php?project_id=${projectId}`);
-            const result = await response.json();
-            
-            if (result.success) {
-                this.transactions = result.data;
-                this.displayTransactions();
-            } else {
-                throw new Error(result.error);
-            }
-        } catch (error) {
-            console.error('Error loading transactions:', error);
-            this.showAlert('Erro ao carregar transações', 'error');
-        }
-    }
+    },
 
     async loadFinancialSummary(projectId) {
         try {
@@ -339,65 +268,65 @@ class ConstructionApp {
             
             if (result.success) {
                 this.displayFinancialSummary(result.data);
-            } else {
-                throw new Error(result.error);
             }
         } catch (error) {
             console.error('Error loading financial summary:', error);
         }
-    }
+    },
 
     displayFinancialSummary(summary) {
         const container = document.getElementById('financial-summary');
+        const usagePercent = summary.budget > 0 ? summary.budget_usage_percent : 0;
         
         container.innerHTML = `
             <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-dollar-sign"></i>
-                </div>
                 <div class="stat-content">
                     <h3>${this.formatCurrency(summary.budget)}</h3>
-                    <p>Orçamento</p>
+                    <p>Orçamento Total</p>
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-arrow-down"></i>
-                </div>
                 <div class="stat-content">
-                    <h3>${this.formatCurrency(summary.total_expenses)}</h3>
-                    <p>Despesas</p>
+                    <h3 class="text-danger">${this.formatCurrency(summary.total_expenses)}</h3>
+                    <p>Total Despesas</p>
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-arrow-up"></i>
-                </div>
                 <div class="stat-content">
-                    <h3>${this.formatCurrency(summary.total_revenue)}</h3>
-                    <p>Receitas</p>
+                    <h3 class="text-success">${this.formatCurrency(summary.total_revenue)}</h3>
+                    <p>Total Receitas</p>
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-chart-line"></i>
-                </div>
                 <div class="stat-content">
-                    <h3>${this.formatCurrency(summary.remaining_budget)}</h3>
-                    <p>Restante</p>
+                    <h3 class="${usagePercent > 100 ? 'text-danger' : 'text-success'}">${this.formatCurrency(summary.remaining_budget)}</h3>
+                    <p>Saldo Restante (${usagePercent.toFixed(1)}%)</p>
                 </div>
             </div>
         `;
-    }
+    },
 
-    displayTransactions() {
+    async loadTransactions(projectId) {
+        try {
+            const response = await fetch(`api/transactions.php?project_id=${projectId}`);
+            const result = await response.json();
+            
+            if (result.success) {
+                this.displayTransactions(result.data);
+            }
+        } catch (error) {
+            console.error('Error loading transactions:', error);
+        }
+    },
+
+    displayTransactions(transactions) {
         const container = document.getElementById('transactions-list');
         
-        if (this.transactions.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted p-4">Nenhuma transação registrada para esta obra.</div>';
+        if (transactions.length === 0) {
+            container.innerHTML = '<p class="text-center text-muted">Nenhuma transação registrada para esta obra.</p>';
             return;
         }
-
+        
         container.innerHTML = `
             <table class="table">
                 <thead>
@@ -406,36 +335,23 @@ class ConstructionApp {
                         <th>Tipo</th>
                         <th>Descrição</th>
                         <th>Valor</th>
-                        <th>Ações</th>
+                        <th>Anexo</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${this.transactions.map(transaction => `
+                    ${transactions.map(t => `
                         <tr>
-                            <td>${transaction.transaction_date_formatted}</td>
-                            <td>
-                                <span class="badge ${transaction.type === 'expense' ? 'bg-danger' : 'bg-success'}">
-                                    ${transaction.type === 'expense' ? 'Despesa' : 'Receita'}
-                                </span>
-                            </td>
-                            <td>${transaction.description}</td>
-                            <td class="${transaction.type === 'expense' ? 'text-danger' : 'text-success'}">
-                                ${transaction.type === 'expense' ? '-' : '+'}${this.formatCurrency(transaction.amount)}
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-primary" onclick="app.editTransaction(${transaction.id})">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="app.deleteTransaction(${transaction.id})">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
+                            <td>${t.transaction_date_formatted}</td>
+                            <td><span class="badge ${t.type === 'expense' ? 'badge-danger' : 'badge-success'}">${t.type === 'expense' ? 'Despesa' : 'Receita'}</span></td>
+                            <td>${t.description}</td>
+                            <td class="${t.type === 'expense' ? 'text-danger' : 'text-success'}">${this.formatCurrency(t.amount)}</td>
+                            <td>${t.image_path ? `<a href="${t.image_path}" target="_blank"><i class="fas fa-paperclip"></i></a>` : '-'}</td>
                         </tr>
                     `).join('')}
                 </tbody>
             </table>
         `;
-    }
+    },
 
     async loadTeamMembers(projectId) {
         try {
@@ -443,29 +359,26 @@ class ConstructionApp {
             const result = await response.json();
             
             if (result.success) {
-                this.teamMembers = result.data;
-                this.displayTeamMembers();
-            } else {
-                throw new Error(result.error);
+                this.displayTeamMembers(result.data);
             }
         } catch (error) {
             console.error('Error loading team members:', error);
-            this.showAlert('Erro ao carregar equipe', 'error');
         }
-    }
+    },
 
-    displayTeamMembers() {
+    displayTeamMembers(members) {
         const container = document.getElementById('team-list');
         
-        if (this.teamMembers.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted p-4">Nenhum membro cadastrado para esta obra.</div>';
+        if (members.length === 0) {
+            container.innerHTML = '<p class="text-center text-muted">Nenhum membro cadastrado para esta obra.</p>';
             return;
         }
-
+        
         container.innerHTML = `
             <table class="table">
                 <thead>
                     <tr>
+                        <th>Foto</th>
                         <th>Nome</th>
                         <th>Função</th>
                         <th>Custo/Hora</th>
@@ -473,102 +386,88 @@ class ConstructionApp {
                     </tr>
                 </thead>
                 <tbody>
-                    ${this.teamMembers.map(member => `
+                    ${members.map(m => `
                         <tr>
-                            <td>${member.name}</td>
-                            <td>${member.role}</td>
-                            <td>${this.formatCurrency(member.hourly_rate)}</td>
+                            <td>${m.image_path ? `<img src="${m.image_path}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 50%;">` : '<i class="fas fa-user-circle text-muted" style="font-size: 2rem;"></i>'}</td>
+                            <td>${m.name}</td>
+                            <td>${m.role}</td>
+                            <td>${this.formatCurrency(m.hourly_rate)}/h</td>
                             <td>
-                                <button class="btn btn-sm btn-primary" onclick="app.editTeamMember(${member.id})">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="app.deleteTeamMember(${member.id})">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="app.deleteTeamMember(${m.id})"><i class="fas fa-trash"></i></button>
                             </td>
                         </tr>
                     `).join('')}
                 </tbody>
             </table>
         `;
-    }
+    },
 
-    // Modal Management
-    showModal(title, content, footer = '') {
-        const modalHtml = `
+    async deleteTeamMember(memberId) {
+        if (!confirm('Tem certeza que deseja remover este membro?')) return;
+        
+        try {
+            const response = await fetch(`api/team.php?id=${memberId}`, { method: 'DELETE' });
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert('Membro removido com sucesso!', 'success');
+                this.loadTeamMembers(this.currentProject);
+            }
+        } catch (error) {
+            this.showAlert('Erro ao remover membro', 'error');
+        }
+    },
+
+    formatCurrency(value) {
+        return 'R$ ' + parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    showModal(title, content, footer) {
+        const modal = `
             <div class="modal active">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h3>${title}</h3>
-                        <button type="button" class="modal-close" onclick="app.closeModal()">&times;</button>
+                        <button class="modal-close" onclick="app.closeModal()">&times;</button>
                     </div>
                     <div class="modal-body">
                         ${content}
                     </div>
-                    ${footer ? `<div class="modal-footer">${footer}</div>` : ''}
+                    <div class="modal-footer">
+                        ${footer}
+                    </div>
                 </div>
             </div>
         `;
-        
-        document.getElementById('modal-container').innerHTML = modalHtml;
-    }
+        document.getElementById('modal-container').innerHTML = modal;
+    },
 
     closeModal() {
-        const modal = document.querySelector('.modal');
-        if (modal) {
-            modal.classList.remove('active');
-            setTimeout(() => {
-                document.getElementById('modal-container').innerHTML = '';
-            }, 300);
-        }
-    }
+        document.getElementById('modal-container').innerHTML = '';
+    },
 
     showAlert(message, type = 'info') {
-        const alertClass = `alert-${type}`;
-        const iconMap = {
-            success: 'fas fa-check-circle',
-            error: 'fas fa-exclamation-triangle',
-            warning: 'fas fa-exclamation-circle',
-            info: 'fas fa-info-circle'
-        };
-
+        const alertClass = type === 'success' ? 'alert-success' : 
+                          type === 'error' ? 'alert-error' : 
+                          type === 'warning' ? 'alert-warning' : 'alert-info';
+        
         const alert = document.createElement('div');
         alert.className = `alert ${alertClass}`;
-        alert.innerHTML = `
-            <i class="${iconMap[type]}"></i>
-            ${message}
-        `;
-
+        alert.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i> ${message}`;
+        alert.style.position = 'fixed';
+        alert.style.top = '20px';
+        alert.style.right = '20px';
+        alert.style.zIndex = '9999';
+        
         document.body.appendChild(alert);
-
+        
         setTimeout(() => {
             alert.remove();
-        }, 5000);
+        }, 3000);
     }
+};
 
-    // Utility Functions
-    formatCurrency(amount) {
-        return new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-        }).format(amount || 0);
-    }
-
-    formatDate(dateString) {
-        return new Date(dateString).toLocaleDateString('pt-BR');
-    }
-
-    getStatusLabel(status) {
-        const statusMap = {
-            active: 'Ativa',
-            completed: 'Concluída',
-            paused: 'Pausada'
-        };
-        return statusMap[status] || status;
-    }
-}
-
-// Project Management Functions
+// Global function for adding new project
 window.showAddProjectModal = function() {
     const content = `
         <form id="project-form">
@@ -592,6 +491,11 @@ window.showAddProjectModal = function() {
                 <label class="form-label">Responsável</label>
                 <input type="text" id="project-manager" class="form-input" required>
             </div>
+            <div class="form-group">
+                <label class="form-label">Foto da Obra (opcional)</label>
+                <input type="file" id="project-image" class="form-input" accept="image/*" onchange="app.handleImageUpload(this, 'project-image-preview')">
+                <div id="project-image-preview" style="margin-top: 10px;"></div>
+            </div>
         </form>
     `;
 
@@ -603,5 +507,34 @@ window.showAddProjectModal = function() {
     app.showModal('Nova Obra', content, footer);
 };
 
-// Initialize the application
-const app = new ConstructionApp();
+// Handle image upload
+app.handleImageUpload = async function(input, previewId) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        try {
+            const response = await fetch('api/upload.php', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                const preview = document.getElementById(previewId);
+                preview.innerHTML = `<img src="${result.data.path}" style="max-width: 200px; border-radius: 5px;">`;
+                input.dataset.uploadedPath = result.data.path;
+            } else {
+                this.showAlert('Erro ao fazer upload da imagem', 'error');
+            }
+        } catch (error) {
+            this.showAlert('Erro ao fazer upload da imagem', 'error');
+        }
+    }
+};
+
+// Initialize app when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    app.init();
+});

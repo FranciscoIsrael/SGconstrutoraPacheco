@@ -20,8 +20,7 @@ session_start();
         <header class="header">
             <div class="header-content">
                 <div class="logo">
-                    <i class="fas fa-hard-hat"></i>
-                    <h1>ConstrutoraPRO</h1>
+                    <img src="assets/images/logo-pacheco.jpg" alt="Pacheco Empreendimentos">
                 </div>
                 <nav class="nav">
                     <a href="#" class="nav-link active" data-section="dashboard">
@@ -38,6 +37,9 @@ session_start();
                     </a>
                     <a href="#" class="nav-link" data-section="team">
                         <i class="fas fa-users"></i> Equipe
+                    </a>
+                    <a href="#" class="nav-link" data-section="inventory">
+                        <i class="fas fa-warehouse"></i> Inventário
                     </a>
                 </nav>
             </div>
@@ -165,6 +167,41 @@ session_start();
                     <!-- Team members will be loaded here -->
                 </div>
             </section>
+
+            <!-- Inventory Section -->
+            <section id="inventory" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-warehouse"></i> Inventário da Empresa</h2>
+                    <button class="btn btn-primary" onclick="showAddInventoryModal()">
+                        <i class="fas fa-plus"></i> Novo Item
+                    </button>
+                </div>
+                
+                <div class="stats-grid mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="total-inventory-items">0</h3>
+                            <p>Itens em Estoque</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="total-inventory-value">R$ 0,00</h3>
+                            <p>Valor Total do Estoque</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="inventory-list" class="table-container">
+                    <!-- Inventory items will be loaded here -->
+                </div>
+            </section>
         </main>
     </div>
 
@@ -173,5 +210,6 @@ session_start();
 
     <script src="assets/js/app.js"></script>
     <script src="assets/js/project-functions.js"></script>
+    <script src="assets/js/inventory-functions.js"></script>
 </body>
 </html>
