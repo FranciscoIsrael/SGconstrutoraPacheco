@@ -6,12 +6,25 @@ class Database {
 
     private function __construct() {
         try {
-            // Get database connection details from environment
-            $host = $_ENV['PGHOST'] ?? 'localhost';
-            $port = $_ENV['PGPORT'] ?? '5432';
-            $dbname = $_ENV['PGDATABASE'] ?? 'construction_db';
-            $username = $_ENV['PGUSER'] ?? 'postgres';
-            $password = $_ENV['PGPASSWORD'] ?? '';
+            // Try DATABASE_URL first, then fall back to individual variables
+            $databaseUrl = getenv('DATABASE_URL');
+            
+            if ($databaseUrl) {
+                // Parse DATABASE_URL
+                $parsed = parse_url($databaseUrl);
+                $host = $parsed['host'] ?? 'localhost';
+                $port = $parsed['port'] ?? '5432';
+                $dbname = ltrim($parsed['path'] ?? '/construction_db', '/');
+                $username = $parsed['user'] ?? 'postgres';
+                $password = $parsed['pass'] ?? '';
+            } else {
+                // Fall back to individual environment variables
+                $host = getenv('PGHOST') ?: 'localhost';
+                $port = getenv('PGPORT') ?: '5432';
+                $dbname = getenv('PGDATABASE') ?: 'construction_db';
+                $username = getenv('PGUSER') ?: 'postgres';
+                $password = getenv('PGPASSWORD') ?: '';
+            }
 
             $dsn = "pgsql:host={$host};port={$port};dbname={$dbname};sslmode=require";
             
@@ -23,7 +36,9 @@ class Database {
             
             $this->initializeTables();
         } catch (PDOException $e) {
-            die("Connection failed: " . $e->getMessage());
+            header('Content-Type: application/json');
+            http_response_code(500);
+            die(json_encode(['error' => 'Database connection failed', 'message' => $e->getMessage()]));
         }
     }
 
@@ -128,6 +143,67 @@ class Database {
                 old_value TEXT,
                 new_value TEXT,
                 changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )",
+
+            // Notifications table
+            "CREATE TABLE IF NOT EXISTS notifications (
+                id SERIAL PRIMARY KEY,
+                project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+                type VARCHAR(50) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                is_read BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )",
+
+            // Chat messages table
+            "CREATE TABLE IF NOT EXISTS chat_messages (
+                id SERIAL PRIMARY KEY,
+                project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+                sender_name VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )",
+
+            // Material images table (multiple images per material)
+            "CREATE TABLE IF NOT EXISTS material_images (
+                id SERIAL PRIMARY KEY,
+                material_id INTEGER REFERENCES materials(id) ON DELETE CASCADE,
+                project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+                image_path TEXT NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )",
+
+            // Project progress photos
+            "CREATE TABLE IF NOT EXISTS project_photos (
+                id SERIAL PRIMARY KEY,
+                project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+                image_path TEXT NOT NULL,
+                description TEXT,
+                photo_date DATE DEFAULT CURRENT_DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )",
+
+            // Team time entries (hours/days worked)
+            "CREATE TABLE IF NOT EXISTS time_entries (
+                id SERIAL PRIMARY KEY,
+                team_member_id INTEGER REFERENCES team_members(id) ON DELETE CASCADE,
+                project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+                work_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                hours_worked DECIMAL(5,2) DEFAULT 0,
+                days_worked DECIMAL(5,2) DEFAULT 0,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )",
+
+            // Inventory images (multiple images per inventory item)
+            "CREATE TABLE IF NOT EXISTS inventory_images (
+                id SERIAL PRIMARY KEY,
+                inventory_id INTEGER REFERENCES inventory(id) ON DELETE CASCADE,
+                image_path TEXT NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"
         ];
 
@@ -140,7 +216,14 @@ class Database {
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS image_path TEXT",
             "ALTER TABLE materials ADD COLUMN IF NOT EXISTS image_path TEXT",
             "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS image_path TEXT",
-            "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS image_path TEXT"
+            "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS image_path TEXT",
+            // Team payment options
+            "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS payment_type VARCHAR(20) DEFAULT 'diaria'",
+            "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS daily_rate DECIMAL(10,2) DEFAULT 0",
+            "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS contract_value DECIMAL(15,2) DEFAULT 0",
+            "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS payment_description TEXT",
+            // Inventory movement unit cost tracking
+            "ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS unit_cost DECIMAL(10,2) DEFAULT 0"
         ];
         
         foreach ($alterStatements as $sql) {

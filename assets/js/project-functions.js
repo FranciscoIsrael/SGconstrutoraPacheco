@@ -360,8 +360,27 @@ window.showAddTeamMemberModal = function() {
                 <input type="text" id="member-role" class="form-input" required>
             </div>
             <div class="form-group">
-                <label class="form-label">Custo por Hora (R$)</label>
-                <input type="number" id="member-rate" class="form-input" step="0.01" required>
+                <label class="form-label">Tipo de Pagamento</label>
+                <select id="member-payment-type" class="form-select" onchange="togglePaymentFields()">
+                    <option value="diaria">Diária</option>
+                    <option value="empreita">Empreita</option>
+                </select>
+            </div>
+            <div class="form-group" id="daily-rate-group">
+                <label class="form-label">Valor da Diária (R$)</label>
+                <input type="number" id="member-daily-rate" class="form-input" step="0.01" value="0">
+            </div>
+            <div class="form-group" id="contract-value-group" style="display:none;">
+                <label class="form-label">Valor da Empreita (R$)</label>
+                <input type="number" id="member-contract-value" class="form-input" step="0.01" value="0">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Custo por Hora (R$) - Opcional</label>
+                <input type="number" id="member-rate" class="form-input" step="0.01" value="0">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Descrição/Observações</label>
+                <textarea id="member-payment-description" class="form-textarea" rows="2" placeholder="Informações adicionais sobre o pagamento..."></textarea>
             </div>
         </form>
     `;
@@ -374,13 +393,31 @@ window.showAddTeamMemberModal = function() {
     app.showModal('Novo Membro da Equipe', content, footer);
 };
 
+window.togglePaymentFields = function() {
+    const paymentType = document.getElementById('member-payment-type').value;
+    const dailyGroup = document.getElementById('daily-rate-group');
+    const contractGroup = document.getElementById('contract-value-group');
+    
+    if (paymentType === 'diaria') {
+        dailyGroup.style.display = 'block';
+        contractGroup.style.display = 'none';
+    } else {
+        dailyGroup.style.display = 'none';
+        contractGroup.style.display = 'block';
+    }
+};
+
 app.saveTeamMember = async function(memberId = null) {
     const name = document.getElementById('member-name').value;
     const role = document.getElementById('member-role').value;
-    const hourly_rate = document.getElementById('member-rate').value;
+    const hourly_rate = document.getElementById('member-rate')?.value || 0;
+    const payment_type = document.getElementById('member-payment-type')?.value || 'diaria';
+    const daily_rate = document.getElementById('member-daily-rate')?.value || 0;
+    const contract_value = document.getElementById('member-contract-value')?.value || 0;
+    const payment_description = document.getElementById('member-payment-description')?.value || '';
 
-    if (!name || !role || !hourly_rate) {
-        this.showAlert('Todos os campos são obrigatórios', 'error');
+    if (!name || !role) {
+        this.showAlert('Nome e função são obrigatórios', 'error');
         return;
     }
 
@@ -388,7 +425,11 @@ app.saveTeamMember = async function(memberId = null) {
         project_id: this.currentProject, 
         name, 
         role, 
-        hourly_rate: parseFloat(hourly_rate) 
+        hourly_rate: parseFloat(hourly_rate),
+        payment_type: payment_type,
+        daily_rate: parseFloat(daily_rate),
+        contract_value: parseFloat(contract_value),
+        payment_description: payment_description
     };
 
     try {

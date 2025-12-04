@@ -190,10 +190,13 @@ const app = {
                     </div>
                 </div>
                 <div class="project-actions">
-                    <button class="btn btn-sm btn-warning" onclick="app.editProject(${project.id})">
+                    <button class="btn btn-sm btn-primary" onclick="showProjectDetails(${project.id})" title="Ver Detalhes">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-warning" onclick="app.editProject(${project.id})" title="Editar">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-danger" onclick="app.deleteProject(${project.id})">
+                    <button class="btn btn-sm btn-danger" onclick="app.deleteProject(${project.id})" title="Excluir">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>

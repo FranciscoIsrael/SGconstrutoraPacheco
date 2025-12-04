@@ -107,10 +107,17 @@ function createMovement($db) {
     try {
         $db->beginTransaction();
         
-        // Create movement record
+        // Get inventory item details for cost calculation
+        $invStmt = $db->prepare("SELECT name, unit_cost FROM inventory WHERE id = ?");
+        $invStmt->execute([$input['inventory_id']]);
+        $inventoryItem = $invStmt->fetch();
+        $unitCost = (float)($inventoryItem['unit_cost'] ?? 0);
+        $itemName = $inventoryItem['name'] ?? 'Item';
+        
+        // Create movement record with unit cost
         $stmt = $db->prepare("
-            INSERT INTO inventory_movements (inventory_id, project_id, movement_type, quantity, destination, notes, movement_date) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO inventory_movements (inventory_id, project_id, movement_type, quantity, destination, notes, movement_date, unit_cost) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
         ");
         $stmt->execute([
@@ -120,7 +127,8 @@ function createMovement($db) {
             $input['quantity'],
             sanitizeInput($input['destination'] ?? ''),
             sanitizeInput($input['notes'] ?? ''),
-            $input['movement_date'] ?? date('Y-m-d')
+            $input['movement_date'] ?? date('Y-m-d'),
+            $unitCost
         ]);
         
         $movementId = $stmt->fetchColumn();
@@ -133,6 +141,54 @@ function createMovement($db) {
             WHERE id = ?
         ");
         $updateStmt->execute([$quantityChange, $input['inventory_id']]);
+        
+        // If sending materials to a project (out), create an expense transaction
+        if ($input['movement_type'] === 'out' && !empty($input['project_id'])) {
+            $totalCost = $unitCost * (float)$input['quantity'];
+            
+            if ($totalCost > 0) {
+                // Create expense transaction for the project
+                $transStmt = $db->prepare("
+                    INSERT INTO transactions (project_id, type, description, amount, transaction_date) 
+                    VALUES (?, 'expense', ?, ?, ?)
+                ");
+                $transStmt->execute([
+                    $input['project_id'],
+                    'Material do estoque: ' . $itemName . ' (' . $input['quantity'] . ' unidades)',
+                    $totalCost,
+                    $input['movement_date'] ?? date('Y-m-d')
+                ]);
+            }
+            
+            // Create notification
+            $projStmt = $db->prepare("SELECT name FROM projects WHERE id = ?");
+            $projStmt->execute([$input['project_id']]);
+            $project = $projStmt->fetch();
+            
+            $notifStmt = $db->prepare("
+                INSERT INTO notifications (project_id, type, title, message) 
+                VALUES (?, ?, ?, ?)
+            ");
+            $notifStmt->execute([
+                $input['project_id'],
+                'inventory',
+                'Material enviado para obra',
+                $itemName . ' - ' . $input['quantity'] . ' unidade(s) enviado para: ' . ($project['name'] ?? 'obra')
+            ]);
+        }
+        
+        // Create notification for stock replenishment
+        if ($input['movement_type'] === 'in') {
+            $notifStmt = $db->prepare("
+                INSERT INTO notifications (project_id, type, title, message) 
+                VALUES (NULL, ?, ?, ?)
+            ");
+            $notifStmt->execute([
+                'inventory_restock',
+                'Reposição de estoque',
+                $itemName . ' - ' . $input['quantity'] . ' unidade(s) adicionada(s) ao estoque'
+            ]);
+        }
         
         // Log audit
         $auditStmt = $db->prepare("
