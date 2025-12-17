@@ -49,9 +49,7 @@ switch ($method) {
 function getTeamByProject($db, $projectId) {
     try {
         $stmt = $db->prepare("
-            SELECT tm.*, p.name as project_name,
-                   COALESCE((SELECT SUM(te.hours_worked) FROM time_entries te WHERE te.team_member_id = tm.id), 0) as total_hours,
-                   COALESCE((SELECT SUM(te.days_worked) FROM time_entries te WHERE te.team_member_id = tm.id), 0) as total_days
+            SELECT tm.*, p.name as project_name 
             FROM team_members tm 
             JOIN projects p ON tm.project_id = p.id 
             WHERE tm.project_id = ? 
@@ -62,17 +60,6 @@ function getTeamByProject($db, $projectId) {
         
         foreach ($teamMembers as &$member) {
             $member['hourly_rate'] = (float)$member['hourly_rate'];
-            $member['daily_rate'] = (float)($member['daily_rate'] ?? 0);
-            $member['contract_value'] = (float)($member['contract_value'] ?? 0);
-            $member['total_hours'] = (float)$member['total_hours'];
-            $member['total_days'] = (float)$member['total_days'];
-            
-            // Calculate total payment
-            if ($member['payment_type'] === 'diaria') {
-                $member['total_payment'] = $member['total_days'] * $member['daily_rate'];
-            } else {
-                $member['total_payment'] = $member['contract_value'];
-            }
         }
         
         sendSuccessResponse($teamMembers);
@@ -101,25 +88,21 @@ function getTeamMember($db, $id) {
 function createTeamMember($db) {
     $input = json_decode(file_get_contents('php://input'), true);
     
-    $required = ['project_id', 'name', 'role'];
+    $required = ['project_id', 'name', 'role', 'hourly_rate'];
     if (!validateRequired($required, $input)) {
         sendErrorResponse('All fields are required');
     }
     
     try {
         $stmt = $db->prepare("
-            INSERT INTO team_members (project_id, name, role, hourly_rate, payment_type, daily_rate, contract_value, payment_description) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+            INSERT INTO team_members (project_id, name, role, hourly_rate) 
+            VALUES (?, ?, ?, ?) RETURNING id
         ");
         $stmt->execute([
             $input['project_id'],
             sanitizeInput($input['name']),
             sanitizeInput($input['role']),
-            $input['hourly_rate'] ?? 0,
-            $input['payment_type'] ?? 'diaria',
-            $input['daily_rate'] ?? 0,
-            $input['contract_value'] ?? 0,
-            $input['payment_description'] ?? ''
+            $input['hourly_rate']
         ]);
         
         $memberId = $stmt->fetchColumn();
@@ -132,7 +115,7 @@ function createTeamMember($db) {
 function updateTeamMember($db, $id) {
     $input = json_decode(file_get_contents('php://input'), true);
     
-    $required = ['name', 'role'];
+    $required = ['name', 'role', 'hourly_rate'];
     if (!validateRequired($required, $input)) {
         sendErrorResponse('All fields are required');
     }
@@ -140,19 +123,13 @@ function updateTeamMember($db, $id) {
     try {
         $stmt = $db->prepare("
             UPDATE team_members 
-            SET name = ?, role = ?, hourly_rate = ?, payment_type = ?, 
-                daily_rate = ?, contract_value = ?, payment_description = ?, 
-                updated_at = CURRENT_TIMESTAMP
+            SET name = ?, role = ?, hourly_rate = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ");
         $stmt->execute([
             sanitizeInput($input['name']),
             sanitizeInput($input['role']),
-            $input['hourly_rate'] ?? 0,
-            $input['payment_type'] ?? 'diaria',
-            $input['daily_rate'] ?? 0,
-            $input['contract_value'] ?? 0,
-            $input['payment_description'] ?? '',
+            $input['hourly_rate'],
             $id
         ]);
         
