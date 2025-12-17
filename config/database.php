@@ -1,16 +1,13 @@
 <?php
-// Database configuration and connection
 class Database {
     private static $instance = null;
     private $pdo;
 
     private function __construct() {
         try {
-            // Try DATABASE_URL first (preferred method)
             $databaseUrl = getenv('DATABASE_URL');
             
             if ($databaseUrl) {
-                // Parse DATABASE_URL
                 $url = parse_url($databaseUrl);
                 $host = $url['host'] ?? 'localhost';
                 $port = $url['port'] ?? '5432';
@@ -18,15 +15,17 @@ class Database {
                 $username = $url['user'] ?? 'postgres';
                 $password = $url['pass'] ?? '';
             } else {
-                // Fallback to individual env vars
                 $host = getenv('PGHOST') ?: 'localhost';
                 $port = getenv('PGPORT') ?: '5432';
-                $dbname = getenv('PGDATABASE') ?: 'construction_db';
+                $dbname = getenv('PGDATABASE') ?: 'postgres';
                 $username = getenv('PGUSER') ?: 'postgres';
                 $password = getenv('PGPASSWORD') ?: '';
             }
 
-            $dsn = "pgsql:host={$host};port={$port};dbname={$dbname};sslmode=require";
+            $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
+            if (strpos($host, 'neon.tech') !== false || strpos($host, 'aws') !== false) {
+                $dsn .= ";sslmode=require";
+            }
             
             $this->pdo = new PDO($dsn, $username, $password, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -36,7 +35,8 @@ class Database {
             
             $this->initializeTables();
         } catch (PDOException $e) {
-            die("Connection failed: " . $e->getMessage());
+            header('Content-Type: application/json');
+            die(json_encode(['success' => false, 'error' => 'Database connection failed: ' . $e->getMessage()]));
         }
     }
 
@@ -53,7 +53,6 @@ class Database {
 
     private function initializeTables() {
         $tables = [
-            // Projects table
             "CREATE TABLE IF NOT EXISTS projects (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
@@ -62,25 +61,31 @@ class Database {
                 budget DECIMAL(15,2) NOT NULL DEFAULT 0,
                 manager VARCHAR(255) NOT NULL,
                 status VARCHAR(50) DEFAULT 'active',
-                image_path TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )",
 
-            // Materials table
+            "CREATE TABLE IF NOT EXISTS images (
+                id SERIAL PRIMARY KEY,
+                table_name VARCHAR(100) NOT NULL,
+                record_id INTEGER NOT NULL,
+                file_path TEXT NOT NULL,
+                file_name VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )",
+
             "CREATE TABLE IF NOT EXISTS materials (
                 id SERIAL PRIMARY KEY,
                 project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
                 name VARCHAR(255) NOT NULL,
+                description TEXT,
                 quantity DECIMAL(10,2) NOT NULL,
                 unit VARCHAR(50) NOT NULL DEFAULT 'unidade',
                 cost DECIMAL(10,2) NOT NULL DEFAULT 0,
-                image_path TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )",
 
-            // Financial transactions table
             "CREATE TABLE IF NOT EXISTS transactions (
                 id SERIAL PRIMARY KEY,
                 project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
@@ -88,23 +93,31 @@ class Database {
                 description TEXT NOT NULL,
                 amount DECIMAL(15,2) NOT NULL,
                 transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
-                image_path TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )",
 
-            // Team members table
             "CREATE TABLE IF NOT EXISTS team_members (
                 id SERIAL PRIMARY KEY,
-                project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
                 name VARCHAR(255) NOT NULL,
+                cpf_cnpj VARCHAR(20),
                 role VARCHAR(100) NOT NULL,
-                hourly_rate DECIMAL(8,2) NOT NULL DEFAULT 0,
-                image_path TEXT,
+                payment_type VARCHAR(50) DEFAULT 'hourly',
+                payment_value DECIMAL(10,2) NOT NULL DEFAULT 0,
+                description TEXT,
+                address TEXT,
+                phone VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )",
 
-            // Inventory table (company-wide stock)
+            "CREATE TABLE IF NOT EXISTS team_member_projects (
+                id SERIAL PRIMARY KEY,
+                team_member_id INTEGER REFERENCES team_members(id) ON DELETE CASCADE,
+                project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(team_member_id, project_id)
+            )",
+
             "CREATE TABLE IF NOT EXISTS inventory (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
@@ -113,14 +126,13 @@ class Database {
                 unit VARCHAR(50) NOT NULL DEFAULT 'unidade',
                 unit_cost DECIMAL(10,2) NOT NULL DEFAULT 0,
                 min_quantity DECIMAL(10,2) DEFAULT 0,
-                image_path TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )",
 
-            // Inventory movements history (tracking shipments to clients/projects)
             "CREATE TABLE IF NOT EXISTS inventory_movements (
                 id SERIAL PRIMARY KEY,
+                transaction_code VARCHAR(20) UNIQUE NOT NULL,
                 inventory_id INTEGER REFERENCES inventory(id) ON DELETE CASCADE,
                 project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
                 movement_type VARCHAR(20) NOT NULL CHECK (movement_type IN ('in', 'out')),
@@ -131,7 +143,6 @@ class Database {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )",
 
-            // Audit history table (tracking all changes)
             "CREATE TABLE IF NOT EXISTS audit_history (
                 id SERIAL PRIMARY KEY,
                 table_name VARCHAR(100) NOT NULL,
@@ -147,26 +158,9 @@ class Database {
         foreach ($tables as $sql) {
             $this->pdo->exec($sql);
         }
-        
-        // Add image_path columns to existing tables if they don't exist
-        $alterStatements = [
-            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS image_path TEXT",
-            "ALTER TABLE materials ADD COLUMN IF NOT EXISTS image_path TEXT",
-            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS image_path TEXT",
-            "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS image_path TEXT"
-        ];
-        
-        foreach ($alterStatements as $sql) {
-            try {
-                $this->pdo->exec($sql);
-            } catch (PDOException $e) {
-                // Column might already exist, ignore error
-            }
-        }
     }
 }
 
-// Helper function to get database connection
 function getDB() {
     return Database::getInstance()->getConnection();
 }
