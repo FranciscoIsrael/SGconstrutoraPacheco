@@ -415,3 +415,272 @@ app.saveTeamMember = async function(memberId = null) {
         this.showAlert('Erro ao salvar membro da equipe', 'error');
     }
 };
+
+app.viewProjectDetails = async function(projectId) {
+    try {
+        const [projectRes, materialsRes, teamRes, transactionsRes, imagesRes] = await Promise.all([
+            fetch(`api/projects.php?id=${projectId}`),
+            fetch(`api/materials.php?project_id=${projectId}`),
+            fetch(`api/team.php?project_id=${projectId}`),
+            fetch(`api/transactions.php?project_id=${projectId}`),
+            fetch(`api/images.php?table_name=projects&record_id=${projectId}`)
+        ]);
+
+        const project = (await projectRes.json()).data || {};
+        const materials = (await materialsRes.json()).data || [];
+        const team = (await teamRes.json()).data || [];
+        const transactions = (await transactionsRes.json()).data || [];
+        const images = (await imagesRes.json()).data || [];
+
+        const totalMaterials = materials.reduce((sum, m) => sum + (m.quantity * m.cost), 0);
+        const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + parseFloat(t.amount), 0);
+        const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount), 0);
+        const balance = parseFloat(project.budget || 0) - expenses;
+
+        const content = `
+            <div class="project-details-modal">
+                <div class="project-overview">
+                    <div class="project-photo-section">
+                        ${project.image_path 
+                            ? `<img src="${project.image_path}" class="project-main-photo">`
+                            : `<div class="project-photo-placeholder"><i class="fas fa-building"></i></div>`
+                        }
+                    </div>
+                    <div class="project-info-section">
+                        <h2>${project.name || 'Sem nome'}</h2>
+                        <p class="project-address"><i class="fas fa-map-marker-alt"></i> ${project.address || ''}</p>
+                        <p><i class="fas fa-user"></i> Responsável: ${project.manager || 'N/A'}</p>
+                        <p><i class="fas fa-calendar"></i> Prazo: ${project.deadline ? new Date(project.deadline).toLocaleDateString('pt-BR') : 'N/A'}</p>
+                        <span class="status-badge ${project.status || 'active'}">${project.status === 'completed' ? 'Concluída' : project.status === 'paused' ? 'Pausada' : 'Ativa'}</span>
+                    </div>
+                </div>
+
+                <div class="project-stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Orçamento</span>
+                        <span class="stat-value">${this.formatCurrency(project.budget)}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Gastos</span>
+                        <span class="stat-value expense">${this.formatCurrency(expenses)}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Saldo</span>
+                        <span class="stat-value ${balance >= 0 ? 'positive' : 'negative'}">${this.formatCurrency(balance)}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Materiais</span>
+                        <span class="stat-value">${this.formatCurrency(totalMaterials)}</span>
+                    </div>
+                </div>
+
+                <div class="project-tabs">
+                    <button class="tab-btn active" onclick="showProjectTab('materials-tab')"><i class="fas fa-boxes"></i> Materiais (${materials.length})</button>
+                    <button class="tab-btn" onclick="showProjectTab('team-tab')"><i class="fas fa-users"></i> Equipe (${team.length})</button>
+                    <button class="tab-btn" onclick="showProjectTab('finance-tab')"><i class="fas fa-dollar-sign"></i> Financeiro (${transactions.length})</button>
+                    <button class="tab-btn" onclick="showProjectTab('photos-tab')"><i class="fas fa-images"></i> Fotos (${images.length})</button>
+                </div>
+
+                <div id="materials-tab" class="tab-content active">
+                    ${materials.length > 0 ? `
+                        <table class="table">
+                            <thead><tr><th>Material</th><th>Qtd</th><th>Custo Unit.</th><th>Total</th></tr></thead>
+                            <tbody>
+                                ${materials.map(m => `<tr><td>${m.name}</td><td>${m.quantity} ${m.unit}</td><td>${this.formatCurrency(m.cost)}</td><td>${this.formatCurrency(m.quantity * m.cost)}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    ` : '<p class="text-center text-muted">Nenhum material cadastrado</p>'}
+                </div>
+
+                <div id="team-tab" class="tab-content">
+                    ${team.length > 0 ? `
+                        <div class="team-list-mini">
+                            ${team.map(t => `
+                                <div class="team-item-mini">
+                                    ${t.image_path ? `<img src="${t.image_path}">` : `<i class="fas fa-user"></i>`}
+                                    <div><strong>${t.name}</strong><br><small>${t.role || 'Sem função'}</small></div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<p class="text-center text-muted">Nenhum membro cadastrado</p>'}
+                </div>
+
+                <div id="finance-tab" class="tab-content">
+                    <div class="finance-summary">
+                        <span class="income"><i class="fas fa-arrow-up"></i> Receitas: ${this.formatCurrency(income)}</span>
+                        <span class="expense"><i class="fas fa-arrow-down"></i> Despesas: ${this.formatCurrency(expenses)}</span>
+                    </div>
+                    ${transactions.length > 0 ? `
+                        <table class="table">
+                            <thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Valor</th></tr></thead>
+                            <tbody>
+                                ${transactions.map(t => `
+                                    <tr>
+                                        <td>${new Date(t.transaction_date).toLocaleDateString('pt-BR')}</td>
+                                        <td><span class="badge ${t.type === 'income' ? 'badge-success' : 'badge-danger'}">${t.type === 'income' ? 'Receita' : 'Despesa'}</span></td>
+                                        <td>${t.description || '-'}</td>
+                                        <td>${this.formatCurrency(t.amount)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    ` : '<p class="text-center text-muted">Nenhuma transação registrada</p>'}
+                </div>
+
+                <div id="photos-tab" class="tab-content">
+                    <div class="upload-area" onclick="document.getElementById('project-gallery-input').click()">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Clique para adicionar fotos</p>
+                        <input type="file" id="project-gallery-input" accept="image/*" multiple onchange="uploadMultipleImages(this, 'projects', ${projectId})" hidden>
+                    </div>
+                    <div class="images-gallery">
+                        ${images.length > 0 
+                            ? images.map(img => `
+                                <div class="gallery-item">
+                                    <img src="${img.file_path}" alt="${img.file_name || 'Foto'}">
+                                    <button class="delete-image-btn" onclick="deleteGalleryImage(${img.id})"><i class="fas fa-trash"></i></button>
+                                </div>
+                            `).join('')
+                            : '<p class="no-images">Nenhuma foto cadastrada</p>'
+                        }
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const footer = `
+            <button class="btn btn-secondary" onclick="app.closeModal()">Fechar</button>
+            <button class="btn btn-info" onclick="generateProjectPDF(${projectId})"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+            <button class="btn btn-primary" onclick="app.closeModal(); app.editProject(${projectId})"><i class="fas fa-edit"></i> Editar</button>
+        `;
+
+        this.showModal(`Detalhes da Obra - ${project.name || ''}`, content, footer, 'modal-xl');
+    } catch (error) {
+        console.error('Error loading project details:', error);
+        this.showAlert('Erro ao carregar detalhes da obra', 'error');
+    }
+};
+
+window.showProjectTab = function(tabId) {
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    event.target.classList.add('active');
+};
+
+window.generateProjectPDF = async function(projectId) {
+    try {
+        showNotification('Gerando PDF...', 'info');
+        
+        const [projectRes, materialsRes, teamRes, transactionsRes] = await Promise.all([
+            fetch(`api/projects.php?id=${projectId}`),
+            fetch(`api/materials.php?project_id=${projectId}`),
+            fetch(`api/team.php?project_id=${projectId}`),
+            fetch(`api/transactions.php?project_id=${projectId}`)
+        ]);
+
+        const project = (await projectRes.json()).data || {};
+        const materials = (await materialsRes.json()).data || [];
+        const team = (await teamRes.json()).data || [];
+        const transactions = (await transactionsRes.json()).data || [];
+
+        const totalMaterials = materials.reduce((sum, m) => sum + (m.quantity * m.cost), 0);
+        const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount), 0);
+        const balance = parseFloat(project.budget || 0) - expenses;
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Relatório - ${project.name}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+                    .header { text-align: center; border-bottom: 2px solid #F5A623; padding-bottom: 20px; margin-bottom: 20px; }
+                    .header h1 { color: #2E3B5B; margin: 0; }
+                    .header .logo { color: #F5A623; font-weight: bold; font-size: 1.2em; }
+                    .section { margin-bottom: 25px; }
+                    .section h2 { color: #2E3B5B; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    th { background: #2E3B5B; color: white; }
+                    .stats { display: flex; gap: 20px; margin-bottom: 20px; }
+                    .stat-box { flex: 1; background: #f5f5f5; padding: 15px; border-radius: 5px; text-align: center; }
+                    .stat-box .value { font-size: 1.5em; font-weight: bold; color: #2E3B5B; }
+                    .stat-box .label { color: #666; }
+                    .positive { color: #27ae60; }
+                    .negative { color: #e74c3c; }
+                    .footer { text-align: center; margin-top: 30px; font-size: 0.9em; color: #666; }
+                    @media print { .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="logo">PACHECO EMPREENDIMENTOS</div>
+                    <h1>${project.name}</h1>
+                    <p>${project.address}</p>
+                </div>
+
+                <div class="section">
+                    <h2>Informações Gerais</h2>
+                    <p><strong>Responsável:</strong> ${project.manager || 'N/A'}</p>
+                    <p><strong>Prazo:</strong> ${project.deadline ? new Date(project.deadline).toLocaleDateString('pt-BR') : 'N/A'}</p>
+                    <p><strong>Status:</strong> ${project.status === 'completed' ? 'Concluída' : project.status === 'paused' ? 'Pausada' : 'Ativa'}</p>
+                </div>
+
+                <div class="stats">
+                    <div class="stat-box"><div class="value">${formatCurrency(project.budget)}</div><div class="label">Orçamento</div></div>
+                    <div class="stat-box"><div class="value">${formatCurrency(expenses)}</div><div class="label">Gastos</div></div>
+                    <div class="stat-box"><div class="value ${balance >= 0 ? 'positive' : 'negative'}">${formatCurrency(balance)}</div><div class="label">Saldo</div></div>
+                </div>
+
+                <div class="section">
+                    <h2>Materiais (${materials.length})</h2>
+                    ${materials.length > 0 ? `
+                        <table>
+                            <tr><th>Material</th><th>Quantidade</th><th>Custo Unit.</th><th>Total</th></tr>
+                            ${materials.map(m => `<tr><td>${m.name}</td><td>${m.quantity} ${m.unit}</td><td>${formatCurrency(m.cost)}</td><td>${formatCurrency(m.quantity * m.cost)}</td></tr>`).join('')}
+                            <tr style="font-weight: bold;"><td colspan="3">TOTAL</td><td>${formatCurrency(totalMaterials)}</td></tr>
+                        </table>
+                    ` : '<p>Nenhum material cadastrado</p>'}
+                </div>
+
+                <div class="section">
+                    <h2>Equipe (${team.length})</h2>
+                    ${team.length > 0 ? `
+                        <table>
+                            <tr><th>Nome</th><th>Função</th><th>Tipo Pagamento</th><th>Valor</th></tr>
+                            ${team.map(t => `<tr><td>${t.name}</td><td>${t.role || '-'}</td><td>${t.payment_type || '-'}</td><td>${formatCurrency(t.payment_value)}</td></tr>`).join('')}
+                        </table>
+                    ` : '<p>Nenhum membro cadastrado</p>'}
+                </div>
+
+                <div class="section">
+                    <h2>Transações Financeiras (${transactions.length})</h2>
+                    ${transactions.length > 0 ? `
+                        <table>
+                            <tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Valor</th></tr>
+                            ${transactions.map(t => `<tr><td>${new Date(t.transaction_date).toLocaleDateString('pt-BR')}</td><td>${t.type === 'income' ? 'Receita' : 'Despesa'}</td><td>${t.description || '-'}</td><td>${formatCurrency(t.amount)}</td></tr>`).join('')}
+                        </table>
+                    ` : '<p>Nenhuma transação registrada</p>'}
+                </div>
+
+                <div class="footer">
+                    Relatório gerado em ${new Date().toLocaleString('pt-BR')}<br>
+                    Pacheco Empreendimentos - Sistema de Gerenciamento de Obras
+                </div>
+
+                <div class="no-print" style="text-align: center; margin-top: 20px;">
+                    <button onclick="window.print()" style="padding: 10px 30px; font-size: 1em; cursor: pointer;">Imprimir / Salvar PDF</button>
+                </div>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        
+        showNotification('PDF gerado com sucesso!', 'success');
+    } catch (error) {
+        console.error('Error generating PDF:', error);
+        showNotification('Erro ao gerar PDF', 'error');
+    }
+};

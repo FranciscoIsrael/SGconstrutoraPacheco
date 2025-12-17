@@ -229,10 +229,16 @@ const app = {
                     </div>
                 </div>
                 <div class="project-actions">
-                    <button class="btn btn-sm btn-warning" onclick="app.editProject(${project.id})">
+                    <button class="btn btn-sm btn-info" onclick="app.viewProjectDetails(${project.id})" title="Ver Detalhes">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-warning" onclick="app.editProject(${project.id})" title="Editar">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-danger" onclick="app.deleteProject(${project.id})">
+                    <button class="btn btn-sm btn-secondary" onclick="showImagesModal('projects', ${project.id}, 'Fotos da Obra')" title="Fotos">
+                        <i class="fas fa-images"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="app.deleteProject(${project.id})" title="Excluir">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -461,10 +467,10 @@ const app = {
         return 'R$ ' + parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     },
 
-    showModal(title, content, footer) {
+    showModal(title, content, footer, sizeClass = '') {
         const modal = `
             <div class="modal active">
-                <div class="modal-content">
+                <div class="modal-content ${sizeClass}">
                     <div class="modal-header">
                         <h3>${title}</h3>
                         <button class="modal-close" onclick="app.closeModal()">&times;</button>

@@ -1289,3 +1289,223 @@ body.hide-values .currency-display {
 .modal-lg {
     max-width: 800px;
 }
+
+.modal-xl {
+    max-width: 1000px;
+}
+
+/* Project Details Modal */
+.project-details-modal {
+    padding: 1rem 0;
+}
+
+.project-overview {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.project-photo-section {
+    flex: 0 0 200px;
+}
+
+.project-main-photo {
+    width: 200px;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 10px;
+}
+
+.project-photo-placeholder {
+    width: 200px;
+    height: 150px;
+    background: var(--light-gray);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4rem;
+    color: var(--medium-gray);
+}
+
+.project-info-section h2 {
+    margin: 0 0 0.5rem 0;
+    color: var(--secondary-color);
+}
+
+.project-info-section p {
+    margin: 0.3rem 0;
+}
+
+.project-address {
+    color: var(--text-light);
+}
+
+/* Status Badge */
+.status-badge {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-top: 0.5rem;
+}
+
+.status-badge.active {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-badge.paused {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-badge.completed {
+    background: #cce5ff;
+    color: #004085;
+}
+
+/* Project Stats Grid */
+.project-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-item {
+    background: var(--light-gray);
+    padding: 1rem;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--secondary-color);
+}
+
+.stat-value.expense { color: var(--danger-color); }
+.stat-value.positive { color: var(--success-color); }
+.stat-value.negative { color: var(--danger-color); }
+
+/* Project Tabs */
+.project-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid var(--light-gray);
+    padding-bottom: 0.5rem;
+}
+
+.tab-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--text-light);
+    font-size: 0.9rem;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+}
+
+.tab-btn:hover {
+    background: var(--light-gray);
+}
+
+.tab-btn.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.tab-content {
+    display: none;
+    padding: 1rem 0;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Team List Mini */
+.team-list-mini {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.team-item-mini {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--light-gray);
+    border-radius: 8px;
+}
+
+.team-item-mini img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.team-item-mini i {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--medium-gray);
+    border-radius: 50%;
+    color: white;
+}
+
+/* Finance Summary */
+.finance-summary {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: var(--light-gray);
+    border-radius: 8px;
+}
+
+.finance-summary .income {
+    color: var(--success-color);
+    font-weight: 500;
+}
+
+.finance-summary .expense {
+    color: var(--danger-color);
+    font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .project-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .project-tabs {
+        flex-wrap: wrap;
+    }
+    
+    .project-overview {
+        flex-direction: column;
+    }
+    
+    .project-photo-section {
+        flex: none;
+    }
+}
