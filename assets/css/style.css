@@ -931,3 +931,361 @@ body.hide-values .currency-display {
     font-weight: bold;
     color: var(--secondary-color);
 }
+
+/* Team Cards Grid */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem 0;
+}
+
+.team-card {
+    background: var(--white);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.team-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-hover);
+}
+
+.team-card-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+}
+
+.team-photo {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid white;
+}
+
+.team-photo-placeholder {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    border: 3px solid white;
+}
+
+.team-info h4 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.team-role {
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+
+.team-card-body {
+    padding: 1rem 1.5rem;
+}
+
+.team-card-body p {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+    color: var(--text-dark);
+}
+
+.team-card-body i {
+    color: var(--primary-color);
+    width: 20px;
+    margin-right: 0.5rem;
+}
+
+.team-card-actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    border-top: 1px solid var(--light-gray);
+    background: var(--light-gray);
+}
+
+/* Member Details Modal */
+.member-details {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.member-photo-section {
+    flex: 0 0 200px;
+}
+
+.large-photo {
+    width: 200px;
+    height: 200px;
+    border-radius: 10px;
+    object-fit: cover;
+}
+
+.large-photo-placeholder {
+    width: 200px;
+    height: 200px;
+    border-radius: 10px;
+    background: var(--light-gray);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 5rem;
+    color: var(--medium-gray);
+}
+
+.member-info-section {
+    flex: 1;
+    min-width: 250px;
+}
+
+.member-info-section h2 {
+    margin: 0 0 0.5rem 0;
+    color: var(--secondary-color);
+}
+
+.member-role {
+    color: var(--primary-color);
+    font-weight: 500;
+    margin-bottom: 1rem;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.info-item {
+    background: var(--light-gray);
+    padding: 0.75rem 1rem;
+    border-radius: 5px;
+}
+
+/* History Timeline */
+.history-timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.history-entry {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.history-badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+}
+
+.history-badge.create { background: var(--success-color); }
+.history-badge.update { background: var(--info-color); }
+.history-badge.delete { background: var(--danger-color); }
+
+.history-content {
+    flex: 1;
+    background: var(--light-gray);
+    padding: 1rem;
+    border-radius: 5px;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.history-action-label {
+    font-weight: bold;
+}
+
+.history-date {
+    color: var(--text-light);
+    font-size: 0.85rem;
+}
+
+/* Notifications */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 1rem 1.5rem;
+    border-radius: 5px;
+    background: var(--white);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    z-index: 10000;
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+}
+
+.notification.show {
+    transform: translateX(0);
+}
+
+.notification.success {
+    border-left: 4px solid var(--success-color);
+}
+
+.notification.success i { color: var(--success-color); }
+
+.notification.error {
+    border-left: 4px solid var(--danger-color);
+}
+
+.notification.error i { color: var(--danger-color); }
+
+.notification.info {
+    border-left: 4px solid var(--info-color);
+}
+
+.notification.info i { color: var(--info-color); }
+
+/* Gallery Styles */
+.images-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.gallery-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.gallery-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.delete-image-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: var(--danger-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.gallery-item:hover .delete-image-btn {
+    opacity: 1;
+}
+
+/* Upload Area */
+.upload-area {
+    border: 2px dashed var(--border-color);
+    border-radius: 10px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.upload-area:hover {
+    border-color: var(--primary-color);
+    background: rgba(245, 166, 35, 0.05);
+}
+
+.upload-area i {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.preview-image {
+    max-width: 200px;
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+/* Filter Bar */
+.filter-bar {
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 1rem;
+}
+
+.filter-bar .form-select {
+    min-width: 200px;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-light);
+}
+
+.empty-state i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.3;
+}
+
+/* Button Info */
+.btn-info {
+    background: var(--info-color);
+    color: white;
+}
+
+.btn-info:hover {
+    background: #253149;
+}
+
+/* Stat icon warning */
+.stat-icon.warning {
+    background-color: #fff3cd;
+}
+
+.stat-icon.warning i {
+    color: #856404;
+}
+
+/* Form Row */
+.form-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+/* Modal Large */
+.modal-lg {
+    max-width: 800px;
+}

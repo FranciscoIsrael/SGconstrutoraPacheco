@@ -1,5 +1,4 @@
 <?php
-// API endpoint for audit history
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
@@ -10,13 +9,13 @@ $method = $_SERVER['REQUEST_METHOD'];
 $db = getDB();
 
 if ($method !== 'GET') {
-    sendErrorResponse('Only GET method is allowed', 405);
+    sendErrorResponse('Método não permitido', 405);
 }
 
-if (isset($_GET['table']) && isset($_GET['record_id'])) {
-    getRecordHistory($db, $_GET['table'], $_GET['record_id']);
-} elseif (isset($_GET['table'])) {
-    getTableHistory($db, $_GET['table']);
+if (isset($_GET['table_name']) && isset($_GET['record_id'])) {
+    getRecordHistory($db, $_GET['table_name'], $_GET['record_id']);
+} elseif (isset($_GET['table_name'])) {
+    getTableHistory($db, $_GET['table_name']);
 } else {
     getAllHistory($db);
 }
@@ -25,18 +24,20 @@ function getAllHistory($db) {
     try {
         $stmt = $db->query("
             SELECT * FROM audit_history
-            ORDER BY changed_at DESC
+            ORDER BY created_at DESC
             LIMIT 100
         ");
         $history = $stmt->fetchAll();
         
         foreach ($history as &$entry) {
-            $entry['changed_at_formatted'] = date('d/m/Y H:i:s', strtotime($entry['changed_at']));
+            $entry['created_at_formatted'] = date('d/m/Y H:i:s', strtotime($entry['created_at']));
+            $entry['old_values'] = $entry['old_values'] ? json_decode($entry['old_values'], true) : null;
+            $entry['new_values'] = $entry['new_values'] ? json_decode($entry['new_values'], true) : null;
         }
         
         sendSuccessResponse($history);
     } catch (PDOException $e) {
-        sendErrorResponse('Failed to fetch history: ' . $e->getMessage());
+        sendErrorResponse('Erro ao buscar histórico: ' . $e->getMessage());
     }
 }
 
@@ -45,19 +46,21 @@ function getTableHistory($db, $table) {
         $stmt = $db->prepare("
             SELECT * FROM audit_history
             WHERE table_name = ?
-            ORDER BY changed_at DESC
+            ORDER BY created_at DESC
             LIMIT 100
         ");
         $stmt->execute([$table]);
         $history = $stmt->fetchAll();
         
         foreach ($history as &$entry) {
-            $entry['changed_at_formatted'] = date('d/m/Y H:i:s', strtotime($entry['changed_at']));
+            $entry['created_at_formatted'] = date('d/m/Y H:i:s', strtotime($entry['created_at']));
+            $entry['old_values'] = $entry['old_values'] ? json_decode($entry['old_values'], true) : null;
+            $entry['new_values'] = $entry['new_values'] ? json_decode($entry['new_values'], true) : null;
         }
         
         sendSuccessResponse($history);
     } catch (PDOException $e) {
-        sendErrorResponse('Failed to fetch history: ' . $e->getMessage());
+        sendErrorResponse('Erro ao buscar histórico: ' . $e->getMessage());
     }
 }
 
@@ -66,26 +69,20 @@ function getRecordHistory($db, $table, $recordId) {
         $stmt = $db->prepare("
             SELECT * FROM audit_history
             WHERE table_name = ? AND record_id = ?
-            ORDER BY changed_at DESC
+            ORDER BY created_at DESC
         ");
         $stmt->execute([$table, $recordId]);
         $history = $stmt->fetchAll();
         
         foreach ($history as &$entry) {
-            $entry['changed_at_formatted'] = date('d/m/Y H:i:s', strtotime($entry['changed_at']));
-            
-            // Decode JSON values if they exist
-            if ($entry['old_value'] && json_decode($entry['old_value'])) {
-                $entry['old_value_decoded'] = json_decode($entry['old_value'], true);
-            }
-            if ($entry['new_value'] && json_decode($entry['new_value'])) {
-                $entry['new_value_decoded'] = json_decode($entry['new_value'], true);
-            }
+            $entry['created_at_formatted'] = date('d/m/Y H:i:s', strtotime($entry['created_at']));
+            $entry['old_values'] = $entry['old_values'] ? json_decode($entry['old_values'], true) : null;
+            $entry['new_values'] = $entry['new_values'] ? json_decode($entry['new_values'], true) : null;
         }
         
         sendSuccessResponse($history);
     } catch (PDOException $e) {
-        sendErrorResponse('Failed to fetch history: ' . $e->getMessage());
+        sendErrorResponse('Erro ao buscar histórico: ' . $e->getMessage());
     }
 }
 ?>

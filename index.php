@@ -161,15 +161,22 @@ session_start();
             <section id="team" class="content-section">
                 <div class="section-header">
                     <h2><i class="fas fa-users"></i> Gerenciar Equipe</h2>
-                    <select id="project-select-team" class="form-select">
-                        <option value="">Selecione uma obra</option>
-                    </select>
-                    <button class="btn btn-primary" onclick="showAddTeamMemberModal()" disabled id="add-member-btn">
-                        <i class="fas fa-user-plus"></i> Novo Membro
-                    </button>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="showTeamHistory()">
+                            <i class="fas fa-history"></i> Histórico
+                        </button>
+                        <button class="btn btn-primary" onclick="showAddTeamMemberModal()">
+                            <i class="fas fa-user-plus"></i> Novo Membro
+                        </button>
+                    </div>
                 </div>
-                <div id="team-list" class="table-container">
-                    <!-- Team members will be loaded here -->
+                <div class="filter-bar">
+                    <select id="project-filter-team" class="form-select">
+                        <option value="">Todos os membros</option>
+                    </select>
+                </div>
+                <div id="team-list" class="cards-grid">
+                    <!-- Team members will be loaded here as cards -->
                 </div>
             </section>
 
@@ -177,9 +184,17 @@ session_start();
             <section id="inventory" class="content-section">
                 <div class="section-header">
                     <h2><i class="fas fa-warehouse"></i> Inventário da Empresa</h2>
-                    <button class="btn btn-primary" onclick="showAddInventoryModal()">
-                        <i class="fas fa-plus"></i> Novo Item
-                    </button>
+                    <div class="header-actions">
+                        <button class="btn btn-info" onclick="showDeliveriesModal()">
+                            <i class="fas fa-truck"></i> Entregas
+                        </button>
+                        <button class="btn btn-secondary" onclick="showInventoryHistory()">
+                            <i class="fas fa-history"></i> Histórico
+                        </button>
+                        <button class="btn btn-primary" onclick="showAddInventoryModal()">
+                            <i class="fas fa-plus"></i> Novo Item
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="stats-grid mb-3">
@@ -201,6 +216,15 @@ session_start();
                             <p>Valor Total do Estoque</p>
                         </div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-icon warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="low-stock-items">0</h3>
+                            <p>Estoque Baixo</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="inventory-list" class="table-container">
@@ -215,6 +239,7 @@ session_start();
 
     <script src="assets/js/app.js"></script>
     <script src="assets/js/project-functions.js"></script>
+    <script src="assets/js/team-functions.js"></script>
     <script src="assets/js/inventory-functions.js"></script>
 </body>
 </html>

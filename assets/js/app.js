@@ -578,7 +578,213 @@ function toggleValuesVisibility() {
     app.toggleValuesVisibility();
 }
 
+// Global utility functions
+function formatCurrency(value) {
+    return 'R$ ' + parseFloat(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 100);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+async function loadProjectsForSelect(selectId, selectedValue = null) {
+    try {
+        const response = await fetch('api/projects.php');
+        const data = await response.json();
+        
+        if (data.success) {
+            const select = document.getElementById(selectId);
+            if (select) {
+                data.data.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.id;
+                    option.textContent = project.name;
+                    if (selectedValue && project.id == selectedValue) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error loading projects:', error);
+    }
+}
+
+// Images gallery modal
+async function showImagesModal(tableName, recordId, title) {
+    try {
+        const response = await fetch(`api/images.php?table_name=${tableName}&record_id=${recordId}`);
+        const data = await response.json();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.id = 'images-modal';
+        modal.innerHTML = `
+            <div class="modal-content modal-lg">
+                <div class="modal-header">
+                    <h3><i class="fas fa-images"></i> ${title}</h3>
+                    <button class="close-btn" onclick="closeModal('images-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="upload-section">
+                        <div class="upload-area" onclick="document.getElementById('multi-image-input').click()">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Clique para adicionar imagens</p>
+                            <input type="file" id="multi-image-input" accept="image/*" multiple 
+                                onchange="uploadMultipleImages(this, '${tableName}', ${recordId})" hidden>
+                        </div>
+                    </div>
+                    <div class="images-gallery" id="images-gallery">
+                        ${data.success && data.data.length > 0 
+                            ? data.data.map(img => `
+                                <div class="gallery-item">
+                                    <img src="${img.file_path}" alt="${img.file_name || 'Imagem'}">
+                                    <button class="delete-image-btn" onclick="deleteGalleryImage(${img.id})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            `).join('')
+                            : '<p class="no-images">Nenhuma imagem cadastrada</p>'
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal('images-modal')">Fechar</button>
+                </div>
+            </div>
+        `;
+        document.getElementById('modal-container').appendChild(modal);
+    } catch (error) {
+        console.error('Error loading images:', error);
+    }
+}
+
+async function uploadMultipleImages(input, tableName, recordId) {
+    const files = input.files;
+    if (!files.length) return;
+    
+    for (const file of files) {
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        try {
+            const uploadResponse = await fetch('api/upload.php', { method: 'POST', body: formData });
+            const uploadData = await uploadResponse.json();
+            
+            if (uploadData.success) {
+                await fetch('api/images.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        table_name: tableName,
+                        record_id: recordId,
+                        file_path: uploadData.data.path,
+                        file_name: file.name
+                    })
+                });
+            }
+        } catch (error) {
+            console.error('Error uploading image:', error);
+        }
+    }
+    
+    closeModal('images-modal');
+    showImagesModal(tableName, recordId, 'Galeria de Imagens');
+    showNotification('Imagens adicionadas com sucesso!', 'success');
+}
+
+async function deleteGalleryImage(imageId) {
+    if (!confirm('Remover esta imagem?')) return;
+    
+    try {
+        const response = await fetch(`api/images.php?id=${imageId}`, { method: 'DELETE' });
+        const data = await response.json();
+        
+        if (data.success) {
+            document.querySelector(`[onclick="deleteGalleryImage(${imageId})"]`).closest('.gallery-item').remove();
+            showNotification('Imagem removida!', 'success');
+        }
+    } catch (error) {
+        console.error('Error deleting image:', error);
+    }
+}
+
+// History modal
+function showHistoryModal(history, title) {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'history-modal';
+    modal.innerHTML = `
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-history"></i> ${title}</h3>
+                <button class="close-btn" onclick="closeModal('history-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                ${history.length > 0 
+                    ? `<div class="history-timeline">
+                        ${history.map(h => `
+                            <div class="history-entry">
+                                <div class="history-badge ${h.action}">
+                                    <i class="fas fa-${h.action === 'create' ? 'plus' : h.action === 'update' ? 'edit' : 'trash'}"></i>
+                                </div>
+                                <div class="history-content">
+                                    <div class="history-header">
+                                        <span class="history-action-label">${h.action === 'create' ? 'Criado' : h.action === 'update' ? 'Atualizado' : 'Excluído'}</span>
+                                        <span class="history-date">${h.created_at_formatted || new Date(h.created_at).toLocaleString('pt-BR')}</span>
+                                    </div>
+                                    <div class="history-details">
+                                        <span>Registro #${h.record_id}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>`
+                    : '<p class="no-history">Nenhum registro de alterações</p>'
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('history-modal')">Fechar</button>
+            </div>
+        </div>
+    `;
+    document.getElementById('modal-container').appendChild(modal);
+}
+
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     app.init();
+    
+    // Load team when section is opened
+    const teamNavLink = document.querySelector('[data-section="team"]');
+    if (teamNavLink) {
+        teamNavLink.addEventListener('click', () => {
+            if (typeof loadTeamMembers === 'function') {
+                loadTeamMembers();
+            }
+        });
+    }
 });

@@ -1,0 +1,29 @@
+Vamos criar um sistema de Sistema de Gerenciamento de Construção Civil. NOME da Empresa: Pacheco Empreendimentos
+Página inicial (dashboard)
+Listagem das obras com status e orçamento
+Botão para cadastrar nova obra
+Botão para ocultar as informações de valores igual aos de banco digitais
+Obras
+Cadastrar obra (nome, endereço, prazo, orçamento, responsável)
+Editar / excluir obra
+botão para poder adicionar quantas imagens o usuário desejar e poder associar as imagens a obra que desejar
+Botão que mostra todas as informações da obra, tipo quem é os responsáveis, fotos dos matérias que foram para a obra, mostras os matérias e os valores de cada matérias e deve ter um botão de gerar um arquivo em pdf. E na horas de gerar o pdf, deve ter a opção do usuário filtrar as informações, caso ele não queria todas as informações e deve ter a opção de compartilhar o arquivo pdf que foi gerado.
+Listar todas as obras
+Materiais
+Associar materiais a uma obra
+Cadastrar (nome, quantidade, custo, adicionar imagens, entre outras informações)
+Listar materiais da obra
+Atualizar / excluir
+Financeiro
+Lançar despesas/receitas vinculadas a uma obra
+Relatório  (total gasto x orçamento previsto)
+Equipe
+Cadastrar pessoas ligadas à obra (nome, CPF OU CNPJ,  função, custo hora ou se é salario, empreita, ou diaria, poder selecionar o valor, caixa de descrição, opção de colocar uma foto da pessoa, onde mora, telefone e entre outras)
+Listar equipe por obra, deve ter uma listar em formato de carde das pessoas que trabalha na empresa e botão para adicionar e editar, botão para associar a pessoas a obra 
+vamos usar no frontend html, css, javascript e no banckend vamos usar php e banco de dados postgreedSQL . o site é de gerenciamento de construção civil, o logo é essa imagem que mandei, vamos usar ela no site, use sempre as boas práticas de programação
+Inventario
+Como a construtora fornece matéria para os seus clientes e o lucro da empresa e a diferença entre o orçamento e os gatos que foram para a empresa . Vamos adicionar um inventario para a emprese gerencia seu estoque, deve ter um histórico para saber para qual cliente foi enviado o matéria e poder envias varias fotos e poder editar, excluir e enviar mais fotos. Deve ter a opção de também de ir colocar valores dos matérias. Cada transação deve ter um código único. O inventaria deve se comunicar muito bem com os orçamento da obra, por exemplo se foi um matéria para uma obra, esse valor deve ser descontado do orçamento da obra para onde foi o matéria. Ainda no inventario deve ter a opção de fazer reposicição de matéria e ficar registrado como foi todas as atualizações
+
+Essa imagem que madei é o logo da empresa. Vamos usar esse logo e adapte as cores do site de acordo com o nosso logo
+
+Onde gerencia obras,material, financeiro, equipe deve ter um lugar para enviar imagem, e Devemos também deixa o histórico em cada parte dessa ai para ver o que foi acrescentado, caso o usuária queira ver o histórico, poder gerar relatorias e transformar em pdf e poder compartilhar. Tipo na parte de adicionar matéria deve poder enviar uma foto do matéria que foi adicionado use sua criatividade.

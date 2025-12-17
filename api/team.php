@@ -1,5 +1,4 @@
 <?php
-// API endpoints for team members management
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
@@ -13,12 +12,12 @@ $db = getDB();
 
 switch ($method) {
     case 'GET':
-        if (isset($_GET['project_id'])) {
-            getTeamByProject($db, $_GET['project_id']);
-        } elseif (isset($_GET['id'])) {
+        if (isset($_GET['id'])) {
             getTeamMember($db, $_GET['id']);
+        } elseif (isset($_GET['project_id'])) {
+            getTeamByProject($db, $_GET['project_id']);
         } else {
-            sendErrorResponse('Project ID is required');
+            getAllTeamMembers($db);
         }
         break;
     
@@ -30,7 +29,7 @@ switch ($method) {
         if (isset($_GET['id'])) {
             updateTeamMember($db, $_GET['id']);
         } else {
-            sendErrorResponse('ID is required for update');
+            sendErrorResponse('ID é obrigatório');
         }
         break;
     
@@ -38,12 +37,35 @@ switch ($method) {
         if (isset($_GET['id'])) {
             deleteTeamMember($db, $_GET['id']);
         } else {
-            sendErrorResponse('ID is required for deletion');
+            sendErrorResponse('ID é obrigatório');
         }
         break;
     
     default:
-        sendErrorResponse('Method not allowed', 405);
+        sendErrorResponse('Método não permitido', 405);
+}
+
+function getAllTeamMembers($db) {
+    try {
+        $stmt = $db->query("
+            SELECT tm.*, 
+                   (SELECT string_agg(p.name, ', ') 
+                    FROM projects p 
+                    WHERE p.id = tm.project_id) as project_names
+            FROM team_members tm 
+            ORDER BY tm.name ASC
+        ");
+        $teamMembers = $stmt->fetchAll();
+        
+        foreach ($teamMembers as &$member) {
+            $member['payment_value'] = (float)($member['payment_value'] ?? 0);
+            $member['images'] = getEntityImages($db, 'team_members', $member['id']);
+        }
+        
+        sendSuccessResponse($teamMembers);
+    } catch (PDOException $e) {
+        sendErrorResponse('Erro ao buscar equipe: ' . $e->getMessage());
+    }
 }
 
 function getTeamByProject($db, $projectId) {
@@ -51,20 +73,21 @@ function getTeamByProject($db, $projectId) {
         $stmt = $db->prepare("
             SELECT tm.*, p.name as project_name 
             FROM team_members tm 
-            JOIN projects p ON tm.project_id = p.id 
+            LEFT JOIN projects p ON tm.project_id = p.id 
             WHERE tm.project_id = ? 
-            ORDER BY tm.created_at DESC
+            ORDER BY tm.name ASC
         ");
         $stmt->execute([$projectId]);
         $teamMembers = $stmt->fetchAll();
         
         foreach ($teamMembers as &$member) {
-            $member['hourly_rate'] = (float)$member['hourly_rate'];
+            $member['payment_value'] = (float)($member['payment_value'] ?? 0);
+            $member['images'] = getEntityImages($db, 'team_members', $member['id']);
         }
         
         sendSuccessResponse($teamMembers);
     } catch (PDOException $e) {
-        sendErrorResponse('Failed to fetch team members: ' . $e->getMessage());
+        sendErrorResponse('Erro ao buscar equipe: ' . $e->getMessage());
     }
 }
 
@@ -75,86 +98,135 @@ function getTeamMember($db, $id) {
         $member = $stmt->fetch();
         
         if ($member) {
-            $member['hourly_rate'] = (float)$member['hourly_rate'];
+            $member['payment_value'] = (float)($member['payment_value'] ?? 0);
+            $member['images'] = getEntityImages($db, 'team_members', $member['id']);
+            $member['history'] = getEntityHistory($db, 'team_members', $member['id']);
             sendSuccessResponse($member);
         } else {
-            sendErrorResponse('Team member not found', 404);
+            sendErrorResponse('Membro não encontrado', 404);
         }
     } catch (PDOException $e) {
-        sendErrorResponse('Failed to fetch team member: ' . $e->getMessage());
+        sendErrorResponse('Erro ao buscar membro: ' . $e->getMessage());
     }
 }
 
 function createTeamMember($db) {
     $input = json_decode(file_get_contents('php://input'), true);
     
-    $required = ['project_id', 'name', 'role', 'hourly_rate'];
-    if (!validateRequired($required, $input)) {
-        sendErrorResponse('All fields are required');
+    if (empty($input['name'])) {
+        sendErrorResponse('Nome é obrigatório');
     }
     
     try {
         $stmt = $db->prepare("
-            INSERT INTO team_members (project_id, name, role, hourly_rate) 
-            VALUES (?, ?, ?, ?) RETURNING id
+            INSERT INTO team_members (
+                name, cpf_cnpj, role, payment_type, payment_value, 
+                description, address, phone, image_path, project_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
         ");
         $stmt->execute([
-            $input['project_id'],
             sanitizeInput($input['name']),
-            sanitizeInput($input['role']),
-            $input['hourly_rate']
+            sanitizeInput($input['cpf_cnpj'] ?? ''),
+            sanitizeInput($input['role'] ?? ''),
+            sanitizeInput($input['payment_type'] ?? 'diaria'),
+            $input['payment_value'] ?? 0,
+            sanitizeInput($input['description'] ?? ''),
+            sanitizeInput($input['address'] ?? ''),
+            sanitizeInput($input['phone'] ?? ''),
+            $input['image_path'] ?? null,
+            $input['project_id'] ?? null
         ]);
         
         $memberId = $stmt->fetchColumn();
-        sendSuccessResponse(['id' => $memberId, 'message' => 'Team member added successfully']);
+        logAudit($db, 'team_members', $memberId, 'create', null, $input);
+        sendSuccessResponse(['id' => $memberId, 'message' => 'Membro adicionado com sucesso']);
     } catch (PDOException $e) {
-        sendErrorResponse('Failed to add team member: ' . $e->getMessage());
+        sendErrorResponse('Erro ao adicionar membro: ' . $e->getMessage());
     }
 }
 
 function updateTeamMember($db, $id) {
     $input = json_decode(file_get_contents('php://input'), true);
     
-    $required = ['name', 'role', 'hourly_rate'];
-    if (!validateRequired($required, $input)) {
-        sendErrorResponse('All fields are required');
+    if (empty($input['name'])) {
+        sendErrorResponse('Nome é obrigatório');
     }
     
     try {
+        $oldStmt = $db->prepare("SELECT * FROM team_members WHERE id = ?");
+        $oldStmt->execute([$id]);
+        $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
+        
         $stmt = $db->prepare("
-            UPDATE team_members 
-            SET name = ?, role = ?, hourly_rate = ?, updated_at = CURRENT_TIMESTAMP
+            UPDATE team_members SET 
+                name = ?, cpf_cnpj = ?, role = ?, payment_type = ?, payment_value = ?,
+                description = ?, address = ?, phone = ?, 
+                image_path = COALESCE(?, image_path), project_id = ?,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ");
         $stmt->execute([
             sanitizeInput($input['name']),
-            sanitizeInput($input['role']),
-            $input['hourly_rate'],
+            sanitizeInput($input['cpf_cnpj'] ?? ''),
+            sanitizeInput($input['role'] ?? ''),
+            sanitizeInput($input['payment_type'] ?? 'diaria'),
+            $input['payment_value'] ?? 0,
+            sanitizeInput($input['description'] ?? ''),
+            sanitizeInput($input['address'] ?? ''),
+            sanitizeInput($input['phone'] ?? ''),
+            $input['image_path'] ?? null,
+            $input['project_id'] ?? null,
             $id
         ]);
         
         if ($stmt->rowCount() > 0) {
-            sendSuccessResponse(['message' => 'Team member updated successfully']);
+            logAudit($db, 'team_members', $id, 'update', $oldData, $input);
+            sendSuccessResponse(['message' => 'Membro atualizado com sucesso']);
         } else {
-            sendErrorResponse('Team member not found', 404);
+            sendErrorResponse('Membro não encontrado', 404);
         }
     } catch (PDOException $e) {
-        sendErrorResponse('Failed to update team member: ' . $e->getMessage());
+        sendErrorResponse('Erro ao atualizar membro: ' . $e->getMessage());
     }
 }
 
 function deleteTeamMember($db, $id) {
     try {
+        $oldStmt = $db->prepare("SELECT * FROM team_members WHERE id = ?");
+        $oldStmt->execute([$id]);
+        $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
+        
         $stmt = $db->prepare("DELETE FROM team_members WHERE id = ?");
         $stmt->execute([$id]);
         
         if ($stmt->rowCount() > 0) {
-            sendSuccessResponse(['message' => 'Team member removed successfully']);
+            logAudit($db, 'team_members', $id, 'delete', $oldData, null);
+            sendSuccessResponse(['message' => 'Membro removido com sucesso']);
         } else {
-            sendErrorResponse('Team member not found', 404);
+            sendErrorResponse('Membro não encontrado', 404);
         }
     } catch (PDOException $e) {
-        sendErrorResponse('Failed to remove team member: ' . $e->getMessage());
+        sendErrorResponse('Erro ao remover membro: ' . $e->getMessage());
+    }
+}
+
+function getEntityImages($db, $tableName, $recordId) {
+    try {
+        $stmt = $db->prepare("SELECT * FROM images WHERE table_name = ? AND record_id = ? ORDER BY created_at DESC");
+        $stmt->execute([$tableName, $recordId]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+function getEntityHistory($db, $tableName, $recordId) {
+    try {
+        $stmt = $db->prepare("SELECT * FROM audit_history WHERE table_name = ? AND record_id = ? ORDER BY created_at DESC LIMIT 20");
+        $stmt->execute([$tableName, $recordId]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        return [];
     }
 }
 ?>

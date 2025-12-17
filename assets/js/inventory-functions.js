@@ -354,47 +354,43 @@ app.saveInventoryMovement = async function(inventoryId) {
 // Show inventory history
 app.showInventoryHistory = async function(inventoryId) {
     try {
-        const [itemResponse, movementsResponse] = await Promise.all([
+        const [itemResponse, deliveriesResponse] = await Promise.all([
             fetch(`api/inventory.php?id=${inventoryId}`),
-            fetch(`api/inventory-movements.php?inventory_id=${inventoryId}`)
+            fetch(`api/deliveries.php?inventory_id=${inventoryId}`)
         ]);
         
         const itemResult = await itemResponse.json();
-        const movementsResult = await movementsResponse.json();
+        const deliveriesResult = await deliveriesResponse.json();
         
-        if (!itemResult.success || !movementsResult.success) {
-            throw new Error('Failed to load history');
-        }
-        
-        const item = itemResult.data;
-        const movements = movementsResult.data;
+        const item = itemResult.success ? itemResult.data : {};
+        const deliveries = deliveriesResult.success ? deliveriesResult.data : [];
         
         const content = `
             <div class="alert alert-info">
-                <strong>Item:</strong> ${item.name}<br>
-                <strong>Estoque Atual:</strong> ${item.quantity} ${item.unit}
+                <strong>Item:</strong> ${item.name || 'N/A'}<br>
+                <strong>Estoque Atual:</strong> ${item.quantity || 0} ${item.unit || ''}
             </div>
-            ${movements.length === 0 ? '<p class="text-muted">Nenhuma movimentação registrada.</p>' : `
+            ${deliveries.length === 0 ? '<p class="text-muted">Nenhuma entrega registrada.</p>' : `
                 <table class="table">
                     <thead>
                         <tr>
+                            <th>Código</th>
                             <th>Data</th>
-                            <th>Tipo</th>
+                            <th>Cliente/Destino</th>
                             <th>Quantidade</th>
-                            <th>Destino</th>
+                            <th>Valor</th>
                             <th>Obra</th>
-                            <th>Observações</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${movements.map(m => `
+                        ${deliveries.map(d => `
                             <tr>
-                                <td>${m.movement_date_formatted}</td>
-                                <td><span class="badge ${m.movement_type === 'in' ? 'badge-success' : 'badge-danger'}">${m.movement_type === 'in' ? 'Entrada' : 'Saída'}</span></td>
-                                <td>${m.quantity} ${item.unit}</td>
-                                <td>${m.destination || '-'}</td>
-                                <td>${m.project_name || '-'}</td>
-                                <td>${m.notes || '-'}</td>
+                                <td><strong>${d.delivery_code}</strong></td>
+                                <td>${new Date(d.created_at).toLocaleDateString('pt-BR')}</td>
+                                <td>${d.client_name || '-'}</td>
+                                <td>${d.quantity} ${item.unit || ''}</td>
+                                <td>${app.formatCurrency(d.total_value)}</td>
+                                <td>${d.project_name || '-'}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -406,9 +402,186 @@ app.showInventoryHistory = async function(inventoryId) {
             <button type="button" class="btn btn-primary" onclick="app.closeModal()">Fechar</button>
         `;
 
-        this.showModal(`Histórico de Movimentações - ${item.name}`, content, footer);
+        this.showModal(`Histórico de Entregas - ${item.name || ''}`, content, footer);
     } catch (error) {
         console.error('Error loading history:', error);
         this.showAlert('Erro ao carregar histórico', 'error');
+    }
+};
+
+// Global functions for inventory
+window.showDeliveriesModal = async function() {
+    try {
+        const response = await fetch('api/deliveries.php');
+        const result = await response.json();
+        
+        const deliveries = result.success ? result.data : [];
+        
+        const content = `
+            <div class="deliveries-list">
+                ${deliveries.length === 0 ? '<p class="text-center text-muted">Nenhuma entrega registrada.</p>' : `
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Data</th>
+                                <th>Item</th>
+                                <th>Cliente</th>
+                                <th>Qtd</th>
+                                <th>Valor</th>
+                                <th>Obra</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${deliveries.map(d => `
+                                <tr>
+                                    <td><strong>${d.delivery_code}</strong></td>
+                                    <td>${new Date(d.created_at).toLocaleDateString('pt-BR')}</td>
+                                    <td>${d.item_name}</td>
+                                    <td>${d.client_name || '-'}</td>
+                                    <td>${d.quantity} ${d.unit || ''}</td>
+                                    <td>${formatCurrency(d.total_value)}</td>
+                                    <td>${d.project_name || '-'}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-warning" onclick="showImagesModal('inventory_deliveries', ${d.id}, 'Fotos da Entrega')">
+                                            <i class="fas fa-images"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `}
+            </div>
+        `;
+
+        const footer = `
+            <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Fechar</button>
+            <button type="button" class="btn btn-primary" onclick="app.closeModal(); showNewDeliveryModal()">
+                <i class="fas fa-plus"></i> Nova Entrega
+            </button>
+        `;
+
+        app.showModal('Histórico de Entregas', content, footer);
+    } catch (error) {
+        console.error('Error loading deliveries:', error);
+    }
+};
+
+window.showNewDeliveryModal = async function() {
+    try {
+        const [inventoryRes, projectsRes] = await Promise.all([
+            fetch('api/inventory.php'),
+            fetch('api/projects.php')
+        ]);
+        
+        const inventoryData = await inventoryRes.json();
+        const projectsData = await projectsRes.json();
+        
+        const items = inventoryData.success ? inventoryData.data : [];
+        const projects = projectsData.success ? projectsData.data : [];
+        
+        const content = `
+            <form id="delivery-form">
+                <div class="form-group">
+                    <label>Item do Estoque *</label>
+                    <select name="inventory_id" id="delivery-item" required>
+                        <option value="">Selecione um item</option>
+                        ${items.map(i => `<option value="${i.id}" data-qty="${i.quantity}" data-unit="${i.unit}" data-cost="${i.unit_cost}">${i.name} (${i.quantity} ${i.unit} disponíveis)</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Quantidade *</label>
+                        <input type="number" name="quantity" id="delivery-qty" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Preço Unitário (R$)</label>
+                        <input type="number" name="unit_price" id="delivery-price" step="0.01">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Cliente/Destino</label>
+                    <input type="text" name="client_name" placeholder="Nome do cliente ou destino">
+                </div>
+                <div class="form-group">
+                    <label>Obra (opcional)</label>
+                    <select name="project_id">
+                        <option value="">Nenhuma obra</option>
+                        ${projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Observações</label>
+                    <textarea name="notes" rows="3"></textarea>
+                </div>
+            </form>
+        `;
+
+        const footer = `
+            <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="saveDelivery()">Registrar Entrega</button>
+        `;
+
+        app.showModal('Nova Entrega', content, footer);
+        
+        document.getElementById('delivery-item').addEventListener('change', function() {
+            const selected = this.options[this.selectedIndex];
+            if (selected.value) {
+                document.getElementById('delivery-price').value = selected.dataset.cost || '';
+            }
+        });
+    } catch (error) {
+        console.error('Error loading delivery form:', error);
+    }
+};
+
+window.saveDelivery = async function() {
+    const form = document.getElementById('delivery-form');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData);
+    
+    if (!data.inventory_id || !data.quantity) {
+        showNotification('Selecione um item e informe a quantidade', 'error');
+        return;
+    }
+    
+    data.quantity = parseFloat(data.quantity);
+    data.unit_price = parseFloat(data.unit_price) || null;
+    data.project_id = data.project_id || null;
+    
+    try {
+        const response = await fetch('api/deliveries.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            app.closeModal();
+            app.loadInventory();
+            app.updateInventoryStats();
+            showNotification(`Entrega registrada! Código: ${result.data.delivery_code}`, 'success');
+        } else {
+            showNotification(result.error || 'Erro ao registrar entrega', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving delivery:', error);
+        showNotification('Erro ao registrar entrega', 'error');
+    }
+};
+
+window.showInventoryHistory = async function() {
+    try {
+        const response = await fetch('api/history.php?table_name=inventory');
+        const data = await response.json();
+        
+        if (data.success) {
+            showHistoryModal(data.data, 'Histórico do Inventário');
+        }
+    } catch (error) {
+        console.error('Error loading history:', error);
     }
 };
