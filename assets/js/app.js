@@ -3,11 +3,50 @@ const app = {
     projects: [],
     currentProject: null,
     currentSection: 'dashboard',
+    valuesHidden: false,
     
     init() {
         this.setupNavigation();
         this.loadProjects();
         this.updateDashboardStats();
+        this.loadValuesVisibility();
+    },
+
+    loadValuesVisibility() {
+        this.valuesHidden = localStorage.getItem('valuesHidden') === 'true';
+        this.updateValuesVisibility();
+    },
+
+    toggleValuesVisibility() {
+        this.valuesHidden = !this.valuesHidden;
+        localStorage.setItem('valuesHidden', this.valuesHidden);
+        this.updateValuesVisibility();
+    },
+
+    updateValuesVisibility() {
+        const btn = document.getElementById('toggle-values-btn');
+        const valueElements = document.querySelectorAll('.currency-value, #total-budget, #total-spent, #total-inventory-value');
+        
+        if (this.valuesHidden) {
+            btn.innerHTML = '<i class="fas fa-eye-slash"></i> Mostrar Valores';
+            valueElements.forEach(el => {
+                if (!el.dataset.originalValue) {
+                    el.dataset.originalValue = el.textContent;
+                }
+                el.textContent = 'R$ ••••••';
+                el.classList.add('values-hidden');
+            });
+            document.body.classList.add('hide-values');
+        } else {
+            btn.innerHTML = '<i class="fas fa-eye"></i> Ocultar Valores';
+            valueElements.forEach(el => {
+                if (el.dataset.originalValue) {
+                    el.textContent = el.dataset.originalValue;
+                }
+                el.classList.remove('values-hidden');
+            });
+            document.body.classList.remove('hide-values');
+        }
     },
 
     setupNavigation() {
@@ -533,6 +572,11 @@ app.handleImageUpload = async function(input, previewId) {
         }
     }
 };
+
+// Global function for toggle values button
+function toggleValuesVisibility() {
+    app.toggleValuesVisibility();
+}
 
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

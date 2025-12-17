@@ -50,9 +50,14 @@ session_start();
             <section id="dashboard" class="content-section active">
                 <div class="section-header">
                     <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
-                    <button class="btn btn-primary" onclick="showAddProjectModal()">
-                        <i class="fas fa-plus"></i> Nova Obra
-                    </button>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" id="toggle-values-btn" onclick="toggleValuesVisibility()">
+                            <i class="fas fa-eye"></i> Ocultar Valores
+                        </button>
+                        <button class="btn btn-primary" onclick="showAddProjectModal()">
+                            <i class="fas fa-plus"></i> Nova Obra
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="stats-grid">

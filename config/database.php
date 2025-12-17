@@ -6,12 +6,25 @@ class Database {
 
     private function __construct() {
         try {
-            // Get database connection details from environment
-            $host = $_ENV['PGHOST'] ?? 'localhost';
-            $port = $_ENV['PGPORT'] ?? '5432';
-            $dbname = $_ENV['PGDATABASE'] ?? 'construction_db';
-            $username = $_ENV['PGUSER'] ?? 'postgres';
-            $password = $_ENV['PGPASSWORD'] ?? '';
+            // Try DATABASE_URL first (preferred method)
+            $databaseUrl = getenv('DATABASE_URL');
+            
+            if ($databaseUrl) {
+                // Parse DATABASE_URL
+                $url = parse_url($databaseUrl);
+                $host = $url['host'] ?? 'localhost';
+                $port = $url['port'] ?? '5432';
+                $dbname = ltrim($url['path'] ?? '/postgres', '/');
+                $username = $url['user'] ?? 'postgres';
+                $password = $url['pass'] ?? '';
+            } else {
+                // Fallback to individual env vars
+                $host = getenv('PGHOST') ?: 'localhost';
+                $port = getenv('PGPORT') ?: '5432';
+                $dbname = getenv('PGDATABASE') ?: 'construction_db';
+                $username = getenv('PGUSER') ?: 'postgres';
+                $password = getenv('PGPASSWORD') ?: '';
+            }
 
             $dsn = "pgsql:host={$host};port={$port};dbname={$dbname};sslmode=require";
             
