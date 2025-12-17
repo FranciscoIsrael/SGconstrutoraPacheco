@@ -47,15 +47,17 @@ switch ($method) {
 function getAllProjects($db) {
     try {
         $stmt = $db->query("
-            SELECT p.*, 
-                   COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE -t.amount END), 0) as total_spent,
+            SELECT p.id, p.name, p.description, p.status, p.start_date, p.end_date, 
+                   p.budget, p.responsible, p.image_path, p.created_at, p.updated_at,
+                   COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as total_spent,
                    COUNT(DISTINCT tm.id) as team_count,
                    COUNT(DISTINCT m.id) as materials_count
             FROM projects p
             LEFT JOIN transactions t ON p.id = t.project_id
             LEFT JOIN team_members tm ON p.id = tm.project_id
             LEFT JOIN materials m ON p.id = m.project_id
-            GROUP BY p.id
+            GROUP BY p.id, p.name, p.description, p.status, p.start_date, p.end_date, 
+                     p.budget, p.responsible, p.image_path, p.created_at, p.updated_at
             ORDER BY p.created_at DESC
         ");
         $projects = $stmt->fetchAll();
@@ -63,7 +65,6 @@ function getAllProjects($db) {
         foreach ($projects as &$project) {
             $project['budget'] = (float)$project['budget'];
             $project['total_spent'] = (float)$project['total_spent'];
-            $project['deadline_formatted'] = formatDate($project['deadline']);
         }
         
         sendSuccessResponse($projects);
@@ -92,61 +93,74 @@ function getProject($db, $id) {
 function createProject($db) {
     $input = json_decode(file_get_contents('php://input'), true);
     
-    $required = ['name', 'address', 'deadline', 'budget', 'manager'];
+    $required = ['name'];
     if (!validateRequired($required, $input)) {
-        sendErrorResponse('All fields are required');
+        sendErrorResponse('Nome é obrigatório');
     }
     
     try {
         $stmt = $db->prepare("
-            INSERT INTO projects (name, address, deadline, budget, manager) 
-            VALUES (?, ?, ?, ?, ?) RETURNING id
+            INSERT INTO projects (name, description, status, start_date, end_date, budget, responsible, image_path) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
         ");
         $stmt->execute([
             sanitizeInput($input['name']),
-            sanitizeInput($input['address']),
-            $input['deadline'],
-            $input['budget'],
-            sanitizeInput($input['manager'])
+            sanitizeInput($input['description'] ?? ''),
+            sanitizeInput($input['status'] ?? 'active'),
+            $input['start_date'] ?? null,
+            $input['end_date'] ?? null,
+            $input['budget'] ?? 0,
+            sanitizeInput($input['responsible'] ?? ''),
+            $input['image_path'] ?? null
         ]);
         
         $projectId = $stmt->fetchColumn();
-        sendSuccessResponse(['id' => $projectId, 'message' => 'Project created successfully']);
+        logAudit($db, 'projects', $projectId, 'create', null, $input);
+        sendSuccessResponse(['id' => $projectId, 'message' => 'Obra criada com sucesso']);
     } catch (PDOException $e) {
-        sendErrorResponse('Failed to create project: ' . $e->getMessage());
+        sendErrorResponse('Falha ao criar obra: ' . $e->getMessage());
     }
 }
 
 function updateProject($db, $id) {
     $input = json_decode(file_get_contents('php://input'), true);
     
-    $required = ['name', 'address', 'deadline', 'budget', 'manager'];
+    $required = ['name'];
     if (!validateRequired($required, $input)) {
-        sendErrorResponse('All fields are required');
+        sendErrorResponse('Nome é obrigatório');
     }
     
     try {
+        $oldStmt = $db->prepare("SELECT * FROM projects WHERE id = ?");
+        $oldStmt->execute([$id]);
+        $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
+        
         $stmt = $db->prepare("
             UPDATE projects 
-            SET name = ?, address = ?, deadline = ?, budget = ?, manager = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, description = ?, status = ?, start_date = ?, end_date = ?, 
+                budget = ?, responsible = ?, image_path = COALESCE(?, image_path), updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ");
         $stmt->execute([
             sanitizeInput($input['name']),
-            sanitizeInput($input['address']),
-            $input['deadline'],
-            $input['budget'],
-            sanitizeInput($input['manager']),
+            sanitizeInput($input['description'] ?? ''),
+            sanitizeInput($input['status'] ?? 'active'),
+            $input['start_date'] ?? null,
+            $input['end_date'] ?? null,
+            $input['budget'] ?? 0,
+            sanitizeInput($input['responsible'] ?? ''),
+            $input['image_path'] ?? null,
             $id
         ]);
         
         if ($stmt->rowCount() > 0) {
-            sendSuccessResponse(['message' => 'Project updated successfully']);
+            logAudit($db, 'projects', $id, 'update', $oldData, $input);
+            sendSuccessResponse(['message' => 'Obra atualizada com sucesso']);
         } else {
-            sendErrorResponse('Project not found', 404);
+            sendErrorResponse('Obra não encontrada', 404);
         }
     } catch (PDOException $e) {
-        sendErrorResponse('Failed to update project: ' . $e->getMessage());
+        sendErrorResponse('Falha ao atualizar obra: ' . $e->getMessage());
     }
 }
 

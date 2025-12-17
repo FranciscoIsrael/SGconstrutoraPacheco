@@ -36,4 +36,22 @@ function sendErrorResponse($message, $statusCode = 400) {
 function sendSuccessResponse($data = []) {
     sendJsonResponse(['success' => true, 'data' => $data]);
 }
+
+function logAudit($db, $tableName, $recordId, $action, $oldValues = null, $newValues = null) {
+    try {
+        $stmt = $db->prepare("
+            INSERT INTO audit_history (table_name, record_id, action, old_values, new_values, created_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ");
+        $stmt->execute([
+            $tableName,
+            $recordId,
+            $action,
+            $oldValues ? json_encode($oldValues) : null,
+            $newValues ? json_encode($newValues) : null
+        ]);
+    } catch (PDOException $e) {
+        error_log("Audit log error: " . $e->getMessage());
+    }
+}
 ?>
