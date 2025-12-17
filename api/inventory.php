@@ -214,15 +214,4 @@ function deleteInventoryItem($db, $id) {
     }
 }
 
-function logAudit($db, $table, $recordId, $action, $field, $oldValue, $newValue) {
-    try {
-        $stmt = $db->prepare("
-            INSERT INTO audit_history (table_name, record_id, action, field_name, old_value, new_value)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([$table, $recordId, $action, $field, $oldValue, $newValue]);
-    } catch (PDOException $e) {
-        // Silently fail audit logging to not interrupt main operation
-    }
-}
 ?>
