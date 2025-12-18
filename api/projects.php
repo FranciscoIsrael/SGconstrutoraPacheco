@@ -47,8 +47,8 @@ switch ($method) {
 function getAllProjects($db) {
     try {
         $stmt = $db->query("
-            SELECT p.id, p.name, p.description, p.status, p.start_date, p.end_date, 
-                   p.budget, p.responsible, p.image_path, p.created_at, p.updated_at,
+            SELECT p.id, p.name, p.description, p.address, p.status, p.start_date, p.end_date, p.deadline,
+                   p.budget, p.responsible, p.manager, p.image_path, p.created_at, p.updated_at,
                    COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as total_spent,
                    COUNT(DISTINCT tm.id) as team_count,
                    COUNT(DISTINCT m.id) as materials_count
@@ -56,8 +56,8 @@ function getAllProjects($db) {
             LEFT JOIN transactions t ON p.id = t.project_id
             LEFT JOIN team_members tm ON p.id = tm.project_id
             LEFT JOIN materials m ON p.id = m.project_id
-            GROUP BY p.id, p.name, p.description, p.status, p.start_date, p.end_date, 
-                     p.budget, p.responsible, p.image_path, p.created_at, p.updated_at
+            GROUP BY p.id, p.name, p.description, p.address, p.status, p.start_date, p.end_date, p.deadline,
+                     p.budget, p.responsible, p.manager, p.image_path, p.created_at, p.updated_at
             ORDER BY p.created_at DESC
         ");
         $projects = $stmt->fetchAll();
@@ -98,19 +98,26 @@ function createProject($db) {
         sendErrorResponse('Nome é obrigatório');
     }
     
+    $address = $input['address'] ?? '';
+    $manager = $input['manager'] ?? $input['responsible'] ?? '';
+    $deadline = $input['deadline'] ?? $input['end_date'] ?? null;
+    
     try {
         $stmt = $db->prepare("
-            INSERT INTO projects (name, description, status, start_date, end_date, budget, responsible, image_path) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+            INSERT INTO projects (name, description, address, status, start_date, end_date, deadline, budget, responsible, manager, image_path) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
         ");
         $stmt->execute([
             sanitizeInput($input['name']),
             sanitizeInput($input['description'] ?? ''),
+            sanitizeInput($address),
             sanitizeInput($input['status'] ?? 'active'),
             $input['start_date'] ?? null,
-            $input['end_date'] ?? null,
+            $deadline,
+            $deadline,
             $input['budget'] ?? 0,
-            sanitizeInput($input['responsible'] ?? ''),
+            sanitizeInput($manager),
+            sanitizeInput($manager),
             $input['image_path'] ?? null
         ]);
         
@@ -130,6 +137,10 @@ function updateProject($db, $id) {
         sendErrorResponse('Nome é obrigatório');
     }
     
+    $address = $input['address'] ?? '';
+    $manager = $input['manager'] ?? $input['responsible'] ?? '';
+    $deadline = $input['deadline'] ?? $input['end_date'] ?? null;
+    
     try {
         $oldStmt = $db->prepare("SELECT * FROM projects WHERE id = ?");
         $oldStmt->execute([$id]);
@@ -137,18 +148,21 @@ function updateProject($db, $id) {
         
         $stmt = $db->prepare("
             UPDATE projects 
-            SET name = ?, description = ?, status = ?, start_date = ?, end_date = ?, 
-                budget = ?, responsible = ?, image_path = COALESCE(?, image_path), updated_at = CURRENT_TIMESTAMP
+            SET name = ?, description = ?, address = ?, status = ?, start_date = ?, end_date = ?, deadline = ?,
+                budget = ?, responsible = ?, manager = ?, image_path = COALESCE(?, image_path), updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ");
         $stmt->execute([
             sanitizeInput($input['name']),
             sanitizeInput($input['description'] ?? ''),
+            sanitizeInput($address),
             sanitizeInput($input['status'] ?? 'active'),
             $input['start_date'] ?? null,
-            $input['end_date'] ?? null,
+            $deadline,
+            $deadline,
             $input['budget'] ?? 0,
-            sanitizeInput($input['responsible'] ?? ''),
+            sanitizeInput($manager),
+            sanitizeInput($manager),
             $input['image_path'] ?? null,
             $id
         ]);
