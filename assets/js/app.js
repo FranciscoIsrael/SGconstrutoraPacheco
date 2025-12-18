@@ -7,9 +7,50 @@ const app = {
     
     init() {
         this.setupNavigation();
-        this.loadProjects();
+        this.loadProjects().then(() => {
+            this.displayRecentProjects();
+            this.displayDeadlineAlerts();
+        });
         this.updateDashboardStats();
         this.loadValuesVisibility();
+    },
+
+    displayDeadlineAlerts() {
+        const container = document.getElementById('deadline-alerts');
+        if (!container) return;
+        
+        const today = new Date();
+        const sevenDays = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+        
+        const upcomingDeadlines = this.projects.filter(p => {
+            if (p.status === 'completed') return false;
+            const deadline = new Date(p.deadline);
+            return deadline <= sevenDays && deadline >= today;
+        });
+
+        const overdueProjects = this.projects.filter(p => {
+            if (p.status === 'completed') return false;
+            const deadline = new Date(p.deadline);
+            return deadline < today;
+        });
+
+        const completedProjects = this.projects.filter(p => p.status === 'completed');
+
+        let html = '';
+        
+        if (overdueProjects.length > 0) {
+            html += `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${overdueProjects.length} obra(s) com prazo vencido!</div>`;
+        }
+        
+        if (upcomingDeadlines.length > 0) {
+            html += `<div class="alert alert-warning"><i class="fas fa-clock"></i> ${upcomingDeadlines.length} obra(s) com prazo nos próximos 7 dias</div>`;
+        }
+
+        if (completedProjects.length > 0) {
+            html += `<div class="alert alert-success"><i class="fas fa-check-circle"></i> ${completedProjects.length} obra(s) concluída(s)</div>`;
+        }
+        
+        container.innerHTML = html;
     },
 
     loadValuesVisibility() {
@@ -199,33 +240,48 @@ const app = {
     },
 
     createProjectCard(project) {
-        const deadline = new Date(project.deadline);
-        const budgetPercent = project.budget > 0 ? (project.total_spent / project.budget) * 100 : 0;
-        const statusClass = project.status === 'active' ? 'status-active' : 
-                           project.status === 'completed' ? 'status-completed' : 'status-paused';
+        const deadline = project.deadline ? new Date(project.deadline) : null;
+        const deadlineStr = deadline ? deadline.toLocaleDateString('pt-BR') : 'Não definido';
+        const budgetPercent = project.budget > 0 ? ((project.total_spent || 0) / project.budget) * 100 : 0;
+        const status = project.status || 'active';
+        const statusClass = status === 'active' ? 'status-active' : 
+                           status === 'completed' ? 'status-completed' : 'status-paused';
+        const statusText = status === 'active' ? 'Ativa' : status === 'completed' ? 'Concluída' : 'Pausada';
+        
+        const today = new Date();
+        let deadlineWarning = '';
+        if (deadline && status !== 'completed') {
+            const daysUntil = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+            if (daysUntil < 0) {
+                deadlineWarning = '<span class="deadline-alert overdue"><i class="fas fa-exclamation-triangle"></i> Vencido</span>';
+            } else if (daysUntil <= 7) {
+                deadlineWarning = `<span class="deadline-alert warning"><i class="fas fa-clock"></i> ${daysUntil} dias</span>`;
+            }
+        }
         
         return `
             <div class="project-card">
                 <div class="project-header">
                     <div>
-                        <h3 class="project-title">${project.name}</h3>
-                        <span class="project-status ${statusClass}">${project.status === 'active' ? 'Ativa' : project.status === 'completed' ? 'Concluída' : 'Pausada'}</span>
+                        <h3 class="project-title">${project.name || 'Sem nome'}</h3>
+                        <span class="project-status ${statusClass}">${statusText}</span>
+                        ${deadlineWarning}
                     </div>
                 </div>
-                ${project.image_path ? `<img src="${project.image_path}" alt="${project.name}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 5px; margin: 10px 0;">` : ''}
+                ${project.image_path ? `<img src="${project.image_path}" alt="${project.name || 'Obra'}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 5px; margin: 10px 0;">` : ''}
                 <div class="project-info">
-                    <p><i class="fas fa-map-marker-alt"></i> ${project.address}</p>
-                    <p><i class="fas fa-calendar"></i> Prazo: ${deadline.toLocaleDateString('pt-BR')}</p>
-                    <p><i class="fas fa-user-tie"></i> Responsável: ${project.manager}</p>
+                    <p><i class="fas fa-map-marker-alt"></i> ${project.address || 'Endereço não informado'}</p>
+                    <p><i class="fas fa-calendar"></i> Prazo: ${deadlineStr}</p>
+                    <p><i class="fas fa-user-tie"></i> Responsável: ${project.manager || 'Não definido'}</p>
                 </div>
                 <div class="project-budget">
                     <div class="budget-item">
                         <div class="budget-label">Orçamento</div>
-                        <div class="budget-value">${this.formatCurrency(project.budget)}</div>
+                        <div class="budget-value">${this.formatCurrency(project.budget || 0)}</div>
                     </div>
                     <div class="budget-item">
                         <div class="budget-label">Gasto</div>
-                        <div class="budget-value ${budgetPercent > 100 ? 'text-danger' : ''}">${this.formatCurrency(project.total_spent)}</div>
+                        <div class="budget-value ${budgetPercent > 100 ? 'text-danger' : ''}">${this.formatCurrency(project.total_spent || 0)}</div>
                     </div>
                 </div>
                 <div class="project-actions">

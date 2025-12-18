@@ -1,5 +1,4 @@
 <?php
-// API endpoint for image upload
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
@@ -10,42 +9,94 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     sendErrorResponse('Only POST method is allowed', 405);
 }
 
-if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
-    sendErrorResponse('No image uploaded or upload error occurred');
+$fileKey = isset($_FILES['file']) ? 'file' : (isset($_FILES['image']) ? 'image' : null);
+
+if (!$fileKey || $_FILES[$fileKey]['error'] !== UPLOAD_ERR_OK) {
+    sendErrorResponse('No file uploaded or upload error occurred');
 }
 
-$file = $_FILES['image'];
-$allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-$maxSize = 5 * 1024 * 1024; // 5MB
+$file = $_FILES[$fileKey];
+$fileType = $_POST['file_type'] ?? 'image';
+$tableName = $_POST['table_name'] ?? '';
+$recordId = $_POST['record_id'] ?? '';
+$description = $_POST['description'] ?? '';
 
-// Validate file type
-if (!in_array($file['type'], $allowedTypes)) {
-    sendErrorResponse('Invalid file type. Only JPG, PNG, GIF and WebP are allowed');
-}
+$maxSize = 10 * 1024 * 1024; // 10MB
 
-// Validate file size
 if ($file['size'] > $maxSize) {
-    sendErrorResponse('File size exceeds 5MB limit');
+    sendErrorResponse('File size exceeds 10MB limit');
 }
 
-// Create uploads directory if it doesn't exist
-$uploadDir = __DIR__ . '/../uploads/';
+$imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+$docTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+             'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain'];
+
+if ($fileType === 'document') {
+    $uploadDir = __DIR__ . '/../uploads/documents/';
+    $allowedTypes = array_merge($imageTypes, $docTypes);
+} else {
+    $uploadDir = __DIR__ . '/../uploads/';
+    $allowedTypes = $imageTypes;
+}
+
+if (!in_array($file['type'], $allowedTypes)) {
+    sendErrorResponse('Invalid file type');
+}
+
 if (!is_dir($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
-// Generate unique filename
 $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-$filename = uniqid('img_', true) . '.' . $extension;
+$prefix = $fileType === 'document' ? 'doc_' : 'img_';
+$filename = $prefix . uniqid('', true) . '.' . $extension;
 $filepath = $uploadDir . $filename;
 
-// Move uploaded file
 if (move_uploaded_file($file['tmp_name'], $filepath)) {
-    $relativePath = 'uploads/' . $filename;
+    $relativePath = $fileType === 'document' ? 'uploads/documents/' . $filename : 'uploads/' . $filename;
+    
+    if ($tableName && $recordId) {
+        $db = getDB();
+        try {
+            if ($fileType === 'document') {
+                $stmt = $db->prepare("
+                    INSERT INTO documents (table_name, record_id, file_path, file_name, description) 
+                    VALUES (?, ?, ?, ?, ?) RETURNING id
+                ");
+                $stmt->execute([
+                    sanitizeInput($tableName),
+                    $recordId,
+                    $relativePath,
+                    $file['name'],
+                    sanitizeInput($description)
+                ]);
+                $docId = $stmt->fetchColumn();
+                logAudit($db, 'documents', $docId, 'create', null, ['file_name' => $file['name']]);
+            } else {
+                $stmt = $db->prepare("
+                    INSERT INTO images (table_name, record_id, file_path, file_name, description) 
+                    VALUES (?, ?, ?, ?, ?) RETURNING id
+                ");
+                $stmt->execute([
+                    sanitizeInput($tableName),
+                    $recordId,
+                    $relativePath,
+                    $file['name'],
+                    sanitizeInput($description)
+                ]);
+                $imageId = $stmt->fetchColumn();
+                logAudit($db, 'images', $imageId, 'create', null, ['file_name' => $file['name']]);
+            }
+        } catch (PDOException $e) {
+            sendErrorResponse('Erro ao salvar no banco: ' . $e->getMessage());
+        }
+    }
+    
     sendSuccessResponse([
-        'message' => 'Image uploaded successfully',
+        'message' => 'File uploaded successfully',
         'path' => $relativePath,
-        'url' => $relativePath
+        'url' => $relativePath,
+        'file_name' => $file['name']
     ]);
 } else {
     sendErrorResponse('Failed to save uploaded file');

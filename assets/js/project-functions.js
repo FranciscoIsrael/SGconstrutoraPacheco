@@ -32,11 +32,9 @@ app.saveProject = async function(projectId = null) {
             this.closeModal();
             await this.loadProjects();
             this.updateDashboardStats();
-            if (this.currentSection === 'dashboard') {
-                this.displayRecentProjects();
-            } else if (this.currentSection === 'projects') {
-                this.displayAllProjects();
-            }
+            this.displayRecentProjects();
+            this.displayAllProjects();
+            this.displayDeadlineAlerts();
         } else {
             throw new Error(result.error);
         }
@@ -479,6 +477,7 @@ app.viewProjectDetails = async function(projectId) {
                     <button class="tab-btn" onclick="showProjectTab('team-tab')"><i class="fas fa-users"></i> Equipe (${team.length})</button>
                     <button class="tab-btn" onclick="showProjectTab('finance-tab')"><i class="fas fa-dollar-sign"></i> Financeiro (${transactions.length})</button>
                     <button class="tab-btn" onclick="showProjectTab('photos-tab')"><i class="fas fa-images"></i> Fotos (${images.length})</button>
+                    <button class="tab-btn" onclick="showProjectTab('docs-tab')"><i class="fas fa-file-alt"></i> Documentos</button>
                 </div>
 
                 <div id="materials-tab" class="tab-content active">
@@ -528,16 +527,25 @@ app.viewProjectDetails = async function(projectId) {
                 </div>
 
                 <div id="photos-tab" class="tab-content">
-                    <div class="upload-area" onclick="document.getElementById('project-gallery-input').click()">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Clique para adicionar fotos</p>
-                        <input type="file" id="project-gallery-input" accept="image/*" multiple onchange="uploadMultipleImages(this, 'projects', ${projectId})" hidden>
+                    <div class="upload-form">
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <input type="text" id="photo-description-${projectId}" class="form-input" placeholder="Descrição da foto (opcional)">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <button class="btn btn-primary" onclick="document.getElementById('project-gallery-input').click()">
+                                    <i class="fas fa-camera"></i> Adicionar Foto
+                                </button>
+                                <input type="file" id="project-gallery-input" accept="image/*" onchange="uploadImageWithDescription(this, 'projects', ${projectId})" hidden>
+                            </div>
+                        </div>
                     </div>
                     <div class="images-gallery">
                         ${images.length > 0 
                             ? images.map(img => `
                                 <div class="gallery-item">
                                     <img src="${img.file_path}" alt="${img.file_name || 'Foto'}">
+                                    <div class="image-description">${img.description || ''}</div>
                                     <button class="delete-image-btn" onclick="deleteGalleryImage(${img.id})"><i class="fas fa-trash"></i></button>
                                 </div>
                             `).join('')
@@ -545,8 +553,29 @@ app.viewProjectDetails = async function(projectId) {
                         }
                     </div>
                 </div>
+
+                <div id="docs-tab" class="tab-content">
+                    <div class="upload-form">
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <input type="text" id="doc-description-${projectId}" class="form-input" placeholder="Descrição do documento">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <button class="btn btn-primary" onclick="document.getElementById('project-doc-input').click()">
+                                    <i class="fas fa-file-upload"></i> Anexar Documento
+                                </button>
+                                <input type="file" id="project-doc-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" onchange="uploadDocumentWithDescription(this, 'projects', ${projectId})" hidden>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="docs-list-${projectId}" class="docs-list">
+                        <p class="text-center text-muted">Carregando documentos...</p>
+                    </div>
+                </div>
             </div>
         `;
+
+        loadProjectDocuments(projectId);
 
         const footer = `
             <button class="btn btn-secondary" onclick="app.closeModal()">Fechar</button>
@@ -682,5 +711,121 @@ window.generateProjectPDF = async function(projectId) {
     } catch (error) {
         console.error('Error generating PDF:', error);
         showNotification('Erro ao gerar PDF', 'error');
+    }
+};
+
+window.uploadImageWithDescription = async function(input, tableName, recordId) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const description = document.getElementById(`photo-description-${recordId}`)?.value || '';
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('table_name', tableName);
+    formData.append('record_id', recordId);
+    formData.append('description', description);
+    
+    try {
+        showNotification('Enviando imagem...', 'info');
+        const response = await fetch('api/upload.php', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showNotification('Imagem enviada com sucesso!', 'success');
+            document.getElementById(`photo-description-${recordId}`).value = '';
+            app.viewProjectDetails(recordId);
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error uploading image:', error);
+        showNotification('Erro ao enviar imagem', 'error');
+    }
+};
+
+window.uploadDocumentWithDescription = async function(input, tableName, recordId) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const description = document.getElementById(`doc-description-${recordId}`)?.value || '';
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('table_name', tableName);
+    formData.append('record_id', recordId);
+    formData.append('description', description);
+    formData.append('file_type', 'document');
+    
+    try {
+        showNotification('Enviando documento...', 'info');
+        const response = await fetch('api/upload.php', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showNotification('Documento enviado com sucesso!', 'success');
+            document.getElementById(`doc-description-${recordId}`).value = '';
+            loadProjectDocuments(recordId);
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error uploading document:', error);
+        showNotification('Erro ao enviar documento', 'error');
+    }
+};
+
+window.loadProjectDocuments = async function(projectId) {
+    try {
+        const response = await fetch(`api/documents.php?table_name=projects&record_id=${projectId}`);
+        const result = await response.json();
+        const container = document.getElementById(`docs-list-${projectId}`);
+        
+        if (!container) return;
+        
+        if (result.success && result.data.length > 0) {
+            container.innerHTML = result.data.map(doc => `
+                <div class="doc-item">
+                    <i class="fas fa-file-alt"></i>
+                    <div class="doc-info">
+                        <a href="${doc.file_path}" target="_blank">${doc.file_name}</a>
+                        <small>${doc.description || 'Sem descrição'}</small>
+                    </div>
+                    <button class="btn btn-sm btn-danger" onclick="deleteDocument(${doc.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = '<p class="text-center text-muted">Nenhum documento anexado</p>';
+        }
+    } catch (error) {
+        console.error('Error loading documents:', error);
+    }
+};
+
+window.deleteDocument = async function(docId) {
+    if (!confirm('Tem certeza que deseja excluir este documento?')) return;
+    
+    try {
+        const response = await fetch(`api/documents.php?id=${docId}`, { method: 'DELETE' });
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('Documento excluído!', 'success');
+            const openModal = document.querySelector('.modal.active');
+            if (openModal) {
+                const projectId = openModal.querySelector('[id^="docs-list-"]')?.id?.split('-')[2];
+                if (projectId) loadProjectDocuments(projectId);
+            }
+        }
+    } catch (error) {
+        showNotification('Erro ao excluir documento', 'error');
     }
 };

@@ -51,7 +51,7 @@ session_start();
                 <div class="section-header">
                     <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
                     <div class="header-actions">
-                        <button class="btn btn-secondary" id="toggle-values-btn" onclick="toggleValuesVisibility()">
+                        <button class="btn btn-secondary btn-toggle-values" id="toggle-values-btn" onclick="toggleValuesVisibility()">
                             <i class="fas fa-eye"></i> Ocultar Valores
                         </button>
                         <button class="btn btn-primary" onclick="showAddProjectModal()">
@@ -60,6 +60,8 @@ session_start();
                     </div>
                 </div>
                 
+                <div id="deadline-alerts" class="alerts-container"></div>
+
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-icon">
