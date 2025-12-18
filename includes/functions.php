@@ -2,6 +2,9 @@
 // Helper functions for the construction management system
 
 function sanitizeInput($data) {
+    if ($data === null) {
+        return '';
+    }
     return htmlspecialchars(strip_tags(trim($data)));
 }
 
