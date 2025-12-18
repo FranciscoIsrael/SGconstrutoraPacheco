@@ -23,14 +23,18 @@ if (isset($_GET['table_name']) && isset($_GET['record_id'])) {
 function getAllHistory($db) {
     try {
         $stmt = $db->query("
-            SELECT * FROM audit_history
-            ORDER BY created_at DESC
+            SELECT id, table_name, record_id, action, 
+                   COALESCE(old_values, old_value) as old_values, 
+                   COALESCE(new_values, new_value) as new_values,
+                   COALESCE(created_at, changed_at) as created_at
+            FROM audit_history
+            ORDER BY COALESCE(created_at, changed_at) DESC
             LIMIT 100
         ");
         $history = $stmt->fetchAll();
         
         foreach ($history as &$entry) {
-            $entry['created_at_formatted'] = date('d/m/Y H:i:s', strtotime($entry['created_at']));
+            $entry['created_at_formatted'] = $entry['created_at'] ? date('d/m/Y H:i:s', strtotime($entry['created_at'])) : '-';
             $entry['old_values'] = $entry['old_values'] ? json_decode($entry['old_values'], true) : null;
             $entry['new_values'] = $entry['new_values'] ? json_decode($entry['new_values'], true) : null;
         }
@@ -44,16 +48,20 @@ function getAllHistory($db) {
 function getTableHistory($db, $table) {
     try {
         $stmt = $db->prepare("
-            SELECT * FROM audit_history
+            SELECT id, table_name, record_id, action, 
+                   COALESCE(old_values, old_value) as old_values, 
+                   COALESCE(new_values, new_value) as new_values,
+                   COALESCE(created_at, changed_at) as created_at
+            FROM audit_history
             WHERE table_name = ?
-            ORDER BY created_at DESC
+            ORDER BY COALESCE(created_at, changed_at) DESC
             LIMIT 100
         ");
         $stmt->execute([$table]);
         $history = $stmt->fetchAll();
         
         foreach ($history as &$entry) {
-            $entry['created_at_formatted'] = date('d/m/Y H:i:s', strtotime($entry['created_at']));
+            $entry['created_at_formatted'] = $entry['created_at'] ? date('d/m/Y H:i:s', strtotime($entry['created_at'])) : '-';
             $entry['old_values'] = $entry['old_values'] ? json_decode($entry['old_values'], true) : null;
             $entry['new_values'] = $entry['new_values'] ? json_decode($entry['new_values'], true) : null;
         }
@@ -67,15 +75,19 @@ function getTableHistory($db, $table) {
 function getRecordHistory($db, $table, $recordId) {
     try {
         $stmt = $db->prepare("
-            SELECT * FROM audit_history
+            SELECT id, table_name, record_id, action, 
+                   COALESCE(old_values, old_value) as old_values, 
+                   COALESCE(new_values, new_value) as new_values,
+                   COALESCE(created_at, changed_at) as created_at
+            FROM audit_history
             WHERE table_name = ? AND record_id = ?
-            ORDER BY created_at DESC
+            ORDER BY COALESCE(created_at, changed_at) DESC
         ");
         $stmt->execute([$table, $recordId]);
         $history = $stmt->fetchAll();
         
         foreach ($history as &$entry) {
-            $entry['created_at_formatted'] = date('d/m/Y H:i:s', strtotime($entry['created_at']));
+            $entry['created_at_formatted'] = $entry['created_at'] ? date('d/m/Y H:i:s', strtotime($entry['created_at'])) : '-';
             $entry['old_values'] = $entry['old_values'] ? json_decode($entry['old_values'], true) : null;
             $entry['new_values'] = $entry['new_values'] ? json_decode($entry['new_values'], true) : null;
         }

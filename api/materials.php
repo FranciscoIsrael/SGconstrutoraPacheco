@@ -165,6 +165,19 @@ function createMaterial($db) {
         
         $materialId = $stmt->fetchColumn();
         
+        $totalCost = floatval($input['quantity']) * floatval($input['cost']);
+        $expenseCode = generateTransactionCode('expense');
+        $expenseStmt = $db->prepare("
+            INSERT INTO transactions (project_id, type, description, amount, transaction_date, transaction_code) 
+            VALUES (?, 'expense', ?, ?, CURRENT_DATE, ?) RETURNING id
+        ");
+        $expenseStmt->execute([
+            $input['project_id'],
+            'Material: ' . $input['name'] . ' (' . $transactionCode . ')',
+            $totalCost,
+            $expenseCode
+        ]);
+        
         logAudit($db, 'materials', $materialId, 'create', null, $input);
         
         $db->commit();
