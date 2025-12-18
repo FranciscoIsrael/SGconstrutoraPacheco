@@ -121,6 +121,11 @@ function getTransaction($db, $id) {
     }
 }
 
+function generateTransactionCode($type) {
+    $prefix = $type === 'expense' ? 'DES' : 'REC';
+    return $prefix . '-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
+}
+
 function createTransaction($db) {
     $input = json_decode(file_get_contents('php://input'), true);
     
@@ -134,20 +139,31 @@ function createTransaction($db) {
     }
     
     try {
+        $transactionCode = generateTransactionCode($input['type']);
+        
         $stmt = $db->prepare("
-            INSERT INTO transactions (project_id, type, description, amount, transaction_date) 
-            VALUES (?, ?, ?, ?, ?) RETURNING id
+            INSERT INTO transactions (project_id, type, description, amount, transaction_date, transaction_code, receipt_path, image_path) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
         ");
         $stmt->execute([
             $input['project_id'],
             $input['type'],
             sanitizeInput($input['description']),
             $input['amount'],
-            $input['transaction_date'] ?? date('Y-m-d')
+            $input['transaction_date'] ?? date('Y-m-d'),
+            $transactionCode,
+            sanitizeInput($input['receipt_path'] ?? null),
+            sanitizeInput($input['image_path'] ?? null)
         ]);
         
         $transactionId = $stmt->fetchColumn();
-        sendSuccessResponse(['id' => $transactionId, 'message' => 'Transaction created successfully']);
+        logAudit($db, 'transactions', $transactionId, 'create', null, $input);
+        
+        sendSuccessResponse([
+            'id' => $transactionId, 
+            'transaction_code' => $transactionCode,
+            'message' => 'Transaction created successfully'
+        ]);
     } catch (PDOException $e) {
         sendErrorResponse('Failed to create transaction: ' . $e->getMessage());
     }

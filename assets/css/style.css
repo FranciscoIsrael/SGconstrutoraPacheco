@@ -273,6 +273,54 @@ body {
     padding: 2rem;
 }
 
+/* Upload Area Mini */
+.upload-area-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--light-gray);
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.upload-area-mini:hover {
+    border-color: var(--primary-color);
+    background: #fff5e6;
+}
+
+.receipt-preview {
+    margin-top: 0.5rem;
+}
+
+.receipt-preview img {
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+/* Assignments Section */
+.assignments-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.btn-xs {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
 /* Main Content */
 .main-content {
     padding: 2rem;

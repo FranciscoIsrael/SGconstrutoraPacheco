@@ -123,20 +123,44 @@ app.deleteProject = async function(projectId) {
 };
 
 // Material Functions
-window.showAddMaterialModal = function() {
+window.showAddMaterialModal = async function() {
+    let inventoryOptions = '<option value="">-- Cadastrar manualmente --</option>';
+    try {
+        const response = await fetch('api/inventory.php');
+        const result = await response.json();
+        if (result.success && result.data.length > 0) {
+            inventoryOptions += result.data.map(item => 
+                `<option value="${item.id}" data-name="${item.name}" data-unit="${item.unit}" data-cost="${item.unit_cost}" data-qty="${item.quantity}">${item.name} (Estoque: ${item.quantity} ${item.unit})</option>`
+            ).join('');
+        }
+    } catch (e) { console.error(e); }
+
     const content = `
         <form id="material-form">
+            <div class="form-group">
+                <label class="form-label">Buscar no Inventário</label>
+                <select id="material-inventory" class="form-input" onchange="fillMaterialFromInventory(this)">
+                    ${inventoryOptions}
+                </select>
+            </div>
             <div class="form-group">
                 <label class="form-label">Nome do Material</label>
                 <input type="text" id="material-name" class="form-input" required>
             </div>
             <div class="form-group">
-                <label class="form-label">Quantidade</label>
-                <input type="number" id="material-quantity" class="form-input" step="0.01" required>
+                <label class="form-label">Descrição</label>
+                <textarea id="material-description" class="form-input" rows="2"></textarea>
             </div>
-            <div class="form-group">
-                <label class="form-label">Unidade</label>
-                <input type="text" id="material-unit" class="form-input" value="unidade" required>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Quantidade</label>
+                    <input type="number" id="material-quantity" class="form-input" step="0.01" required>
+                    <small id="material-stock-info" class="text-muted"></small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Unidade</label>
+                    <input type="text" id="material-unit" class="form-input" value="unidade" required>
+                </div>
             </div>
             <div class="form-group">
                 <label class="form-label">Custo Unitário (R$)</label>
@@ -153,11 +177,28 @@ window.showAddMaterialModal = function() {
     app.showModal('Novo Material', content, footer);
 };
 
+window.fillMaterialFromInventory = function(select) {
+    const option = select.options[select.selectedIndex];
+    if (select.value) {
+        document.getElementById('material-name').value = option.dataset.name || '';
+        document.getElementById('material-unit').value = option.dataset.unit || 'unidade';
+        document.getElementById('material-cost').value = option.dataset.cost || '';
+        document.getElementById('material-stock-info').textContent = `Disponível: ${option.dataset.qty} ${option.dataset.unit}`;
+    } else {
+        document.getElementById('material-name').value = '';
+        document.getElementById('material-unit').value = 'unidade';
+        document.getElementById('material-cost').value = '';
+        document.getElementById('material-stock-info').textContent = '';
+    }
+};
+
 app.saveMaterial = async function(materialId = null) {
     const name = document.getElementById('material-name').value;
     const quantity = document.getElementById('material-quantity').value;
     const unit = document.getElementById('material-unit').value;
     const cost = document.getElementById('material-cost').value;
+    const description = document.getElementById('material-description')?.value || '';
+    const inventoryId = document.getElementById('material-inventory')?.value || null;
 
     if (!name || !quantity || !unit || !cost) {
         this.showAlert('Todos os campos são obrigatórios', 'error');
@@ -167,9 +208,11 @@ app.saveMaterial = async function(materialId = null) {
     const data = { 
         project_id: this.currentProject, 
         name, 
+        description,
         quantity: parseFloat(quantity), 
         unit, 
-        cost: parseFloat(cost) 
+        cost: parseFloat(cost),
+        inventory_id: inventoryId ? parseInt(inventoryId) : null
     };
 
     try {
@@ -269,13 +312,19 @@ app.deleteMaterial = async function(materialId) {
 window.showAddTransactionModal = function() {
     const content = `
         <form id="transaction-form">
-            <div class="form-group">
-                <label class="form-label">Tipo</label>
-                <select id="transaction-type" class="form-select" required>
-                    <option value="">Selecione o tipo</option>
-                    <option value="expense">Despesa</option>
-                    <option value="revenue">Receita</option>
-                </select>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Tipo</label>
+                    <select id="transaction-type" class="form-select" required>
+                        <option value="">Selecione o tipo</option>
+                        <option value="expense">Despesa</option>
+                        <option value="revenue">Receita</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Data</label>
+                    <input type="date" id="transaction-date" class="form-input" value="${new Date().toISOString().split('T')[0]}" required>
+                </div>
             </div>
             <div class="form-group">
                 <label class="form-label">Descrição</label>
@@ -286,8 +335,13 @@ window.showAddTransactionModal = function() {
                 <input type="number" id="transaction-amount" class="form-input" step="0.01" required>
             </div>
             <div class="form-group">
-                <label class="form-label">Data</label>
-                <input type="date" id="transaction-date" class="form-input" value="${new Date().toISOString().split('T')[0]}" required>
+                <label class="form-label">Comprovante (opcional)</label>
+                <div class="upload-area-mini" onclick="document.getElementById('transaction-receipt').click()">
+                    <i class="fas fa-paperclip"></i> Anexar Comprovante
+                    <input type="file" id="transaction-receipt" accept="image/*,.pdf" hidden onchange="previewTransactionReceipt(this)">
+                </div>
+                <div id="receipt-preview" class="receipt-preview"></div>
+                <input type="hidden" id="transaction-receipt-path">
             </div>
         </form>
     `;
@@ -300,11 +354,39 @@ window.showAddTransactionModal = function() {
     app.showModal('Nova Transação', content, footer);
 };
 
+window.previewTransactionReceipt = async function(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const preview = document.getElementById('receipt-preview');
+    preview.innerHTML = '<span class="loading">Enviando...</span>';
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('file_type', 'document');
+    
+    try {
+        const response = await fetch('api/upload.php', { method: 'POST', body: formData });
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('transaction-receipt-path').value = result.path;
+            const isImage = file.type.startsWith('image/');
+            preview.innerHTML = isImage 
+                ? `<img src="${result.path}" alt="Comprovante" style="max-width: 100px; max-height: 80px;">`
+                : `<i class="fas fa-file-pdf"></i> ${file.name}`;
+        }
+    } catch (e) {
+        preview.innerHTML = '<span class="text-danger">Erro ao enviar</span>';
+    }
+};
+
 app.saveTransaction = async function(transactionId = null) {
     const type = document.getElementById('transaction-type').value;
     const description = document.getElementById('transaction-description').value;
     const amount = document.getElementById('transaction-amount').value;
     const transaction_date = document.getElementById('transaction-date').value;
+    const receipt_path = document.getElementById('transaction-receipt-path')?.value || null;
 
     if (!type || !description || !amount || !transaction_date) {
         this.showAlert('Todos os campos são obrigatórios', 'error');
@@ -316,7 +398,8 @@ app.saveTransaction = async function(transactionId = null) {
         type, 
         description, 
         amount: parseFloat(amount), 
-        transaction_date 
+        transaction_date,
+        receipt_path
     };
 
     try {

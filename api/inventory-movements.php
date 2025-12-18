@@ -92,6 +92,11 @@ function getMovement($db, $id) {
     }
 }
 
+function generateMovementCode($type) {
+    $prefix = $type === 'in' ? 'ENT' : 'SAI';
+    return $prefix . '-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
+}
+
 function createMovement($db) {
     $input = json_decode(file_get_contents('php://input'), true);
     
@@ -107,13 +112,16 @@ function createMovement($db) {
     try {
         $db->beginTransaction();
         
+        $transactionCode = generateMovementCode($input['movement_type']);
+        
         // Create movement record
         $stmt = $db->prepare("
-            INSERT INTO inventory_movements (inventory_id, project_id, movement_type, quantity, destination, notes, movement_date) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO inventory_movements (transaction_code, inventory_id, project_id, movement_type, quantity, destination, notes, movement_date) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
         ");
         $stmt->execute([
+            $transactionCode,
             $input['inventory_id'],
             $input['project_id'] ?? null,
             $input['movement_type'],

@@ -585,3 +585,138 @@ window.showInventoryHistory = async function() {
         console.error('Error loading history:', error);
     }
 };
+
+window.generateInventoryPDF = async function() {
+    try {
+        showNotification('Gerando PDF...', 'info');
+        
+        const [inventoryRes, movementsRes] = await Promise.all([
+            fetch('api/inventory.php'),
+            fetch('api/inventory-movements.php')
+        ]);
+        
+        const inventoryData = await inventoryRes.json();
+        const movementsData = await movementsRes.json();
+        
+        if (!inventoryData.success) {
+            showNotification('Erro ao carregar inventário', 'error');
+            return;
+        }
+        
+        const items = inventoryData.data;
+        const movements = movementsData.success ? movementsData.data : [];
+        
+        const totalValue = items.reduce((acc, item) => acc + (item.quantity * item.unit_cost), 0);
+        const lowStockItems = items.filter(i => i.low_stock);
+        
+        const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+        
+        const container = document.createElement('div');
+        container.innerHTML = `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #F5A623; padding-bottom: 20px;">
+                    <h1 style="color: #2E3B5B; margin: 0;">PACHECO EMPREENDIMENTOS</h1>
+                    <p style="color: #666; margin: 5px 0 0 0;">Relatório de Inventário</p>
+                </div>
+                
+                <div style="display: flex; justify-content: space-around; margin-bottom: 30px;">
+                    <div style="text-align: center; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                        <h3 style="margin: 0; color: #F5A623; font-size: 1.5em;">${items.length}</h3>
+                        <p style="margin: 5px 0 0 0; color: #666;">Itens no Inventário</p>
+                    </div>
+                    <div style="text-align: center; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                        <h3 style="margin: 0; color: #F5A623; font-size: 1.5em;">${formatCurrency(totalValue)}</h3>
+                        <p style="margin: 5px 0 0 0; color: #666;">Valor Total</p>
+                    </div>
+                    <div style="text-align: center; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                        <h3 style="margin: 0; color: #F5A623; font-size: 1.5em;">${lowStockItems.length}</h3>
+                        <p style="margin: 5px 0 0 0; color: #666;">Itens com Estoque Baixo</p>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 30px;">
+                    <h2 style="color: #2E3B5B; border-bottom: 2px solid #F5A623; padding-bottom: 10px;">Inventário Completo</h2>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                        <thead>
+                            <tr style="background: #2E3B5B; color: white;">
+                                <th style="padding: 10px; text-align: left;">Item</th>
+                                <th style="padding: 10px; text-align: left;">Descrição</th>
+                                <th style="padding: 10px; text-align: left;">Quantidade</th>
+                                <th style="padding: 10px; text-align: left;">Custo Unit.</th>
+                                <th style="padding: 10px; text-align: left;">Valor Total</th>
+                                <th style="padding: 10px; text-align: left;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map((item, i) => `
+                                <tr style="background: ${item.low_stock ? '#fff3cd' : (i % 2 === 0 ? '#f9f9f9' : 'white')};">
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>${item.name}</strong></td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.description || '-'}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.quantity} ${item.unit}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formatCurrency(item.unit_cost)}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formatCurrency(item.total_value)}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.low_stock ? 'Estoque Baixo' : 'OK'}</td>
+                                </tr>
+                            `).join('')}
+                            <tr style="font-weight: bold; background: #eee;">
+                                <td colspan="4" style="padding: 8px;">TOTAL GERAL</td>
+                                <td style="padding: 8px;">${formatCurrency(totalValue)}</td>
+                                <td style="padding: 8px;"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                ${movements.length > 0 ? `
+                <div style="margin-bottom: 30px;">
+                    <h2 style="color: #2E3B5B; border-bottom: 2px solid #F5A623; padding-bottom: 10px;">Últimas Movimentações</h2>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #2E3B5B; color: white;">
+                                <th style="padding: 10px; text-align: left;">Código</th>
+                                <th style="padding: 10px; text-align: left;">Data</th>
+                                <th style="padding: 10px; text-align: left;">Item</th>
+                                <th style="padding: 10px; text-align: left;">Tipo</th>
+                                <th style="padding: 10px; text-align: left;">Quantidade</th>
+                                <th style="padding: 10px; text-align: left;">Destino</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${movements.slice(0, 20).map((m, i) => `
+                                <tr style="background: ${i % 2 === 0 ? '#f9f9f9' : 'white'};">
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${m.transaction_code || '-'}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${m.movement_date_formatted || m.movement_date}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${m.item_name || '-'}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${m.movement_type === 'in' ? 'Entrada' : 'Saída'}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${m.quantity}</td>
+                                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${m.destination || m.project_name || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ` : ''}
+                
+                <div style="text-align: center; margin-top: 30px; color: #666; font-size: 0.9em;">
+                    Relatório gerado em ${new Date().toLocaleString('pt-BR')}<br>
+                    Pacheco Empreendimentos - Sistema de Gerenciamento
+                </div>
+            </div>
+        `;
+        
+        const opt = {
+            margin: 10,
+            filename: `inventario_pacheco_${new Date().toISOString().split('T')[0]}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        
+        html2pdf().set(opt).from(container).save();
+        
+        showNotification('PDF gerado com sucesso! Baixando...', 'success');
+    } catch (error) {
+        console.error('Error generating PDF:', error);
+        showNotification('Erro ao gerar PDF', 'error');
+    }
+};

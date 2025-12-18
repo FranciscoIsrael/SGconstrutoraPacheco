@@ -14,6 +14,7 @@ session_start();
     <title>Sistema de Gerenciamento de Construção</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -187,6 +188,9 @@ session_start();
                 <div class="section-header">
                     <h2><i class="fas fa-warehouse"></i> Inventário da Empresa</h2>
                     <div class="header-actions">
+                        <button class="btn btn-success" onclick="generateInventoryPDF()">
+                            <i class="fas fa-file-pdf"></i> Gerar PDF
+                        </button>
                         <button class="btn btn-info" onclick="showDeliveriesModal()">
                             <i class="fas fa-truck"></i> Entregas
                         </button>

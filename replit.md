@@ -10,54 +10,73 @@ Sistema web completo de gerenciamento de construção desenvolvido com PHP (back
 - Resumo de orçamentos e gastos
 - Contador de equipe e materiais
 - Cards com obras recentes
+- Notificações de prazo (obras com prazo vencendo)
+- Status de obras concluídas
+- Botão para ocultar valores
 
 ### Gerenciamento de Obras
 - CRUD completo (criar, editar, excluir, listar)
-- Upload de fotos das obras
+- Upload de fotos das obras com descrição
 - Controle de prazo, orçamento e responsável
 - Status da obra (ativa, pausada, concluída)
+- Anexo de documentos (PDF, DOC, XLS)
+- Aba de detalhes com materiais, equipe, financeiro, fotos e documentos
 
 ### Materiais
 - Associar materiais às obras específicas
-- Cadastro com foto, quantidade, unidade e custo
+- **NOVO: Integração com inventário** - Selecionar itens do estoque
+- Dedução automática do estoque ao vincular material
+- Código único de transação (MAT-YYYYMMDD-XXXXXX)
+- Campo de descrição e foto
 - Cálculo automático de custos totais
-- Controle de materiais por obra
 
 ### Financeiro
 - Lançamento de despesas e receitas por obra
-- Upload de comprovantes (fotos/documentos)
+- **NOVO: Código único de transação** (DES/REC-YYYYMMDD-XXXXXX)
+- **NOVO: Anexar comprovantes** (fotos e documentos)
 - Relatórios financeiros com gráficos
 - Controle de orçamento vs gasto real
 - Visualização de saldo restante
 
 ### Equipe
-- Cadastro de membros por obra
+- Cadastro de membros
+- **NOVO: Atribuição a múltiplas obras** com valores diferentes
+- Tabela `project_team_assignments` para relação N:N
+- Histórico de obras por membro
 - Foto de perfil dos membros
-- Função e custo por hora
-- Gestão completa da equipe
+- Função, tipo de pagamento e valor por obra
 
-### **NOVO: Inventário da Empresa**
+### Inventário da Empresa
 - Controle centralizado de estoque geral
 - Cadastro de materiais com foto
 - Quantidade, unidade, custo unitário
 - Alerta de estoque baixo (quantidade mínima)
 - Valor total do inventário
-- **Histórico de Movimentações**:
+- **NOVO: Código único de transação** (ENT/SAI-YYYYMMDD-XXXXXX)
+- **NOVO: Exportação de PDF** real (download automático)
+- Histórico de Movimentações:
   - Registro de entrada/saída de materiais
   - Rastreamento de envios para clientes/obras
   - Vinculação com obras específicas
   - Observações e notas de movimentação
-  
-### **NOVO: Sistema de Histórico/Auditoria**
+
+### Sistema de Documentos
+- **NOVO: Anexar documentos** a projetos
+- Suporte para PDF, DOC, DOCX, XLS, XLSX, TXT
+- Campo de descrição para cada documento
+- Tabela dedicada `documents`
+
+### Sistema de Histórico/Auditoria
 - Registro automático de todas as alterações
 - Histórico por registro específico
 - Rastreamento de criação, edição e exclusão
 - Visualização de valores antigos vs novos
 
-### **NOVO: Upload de Imagens**
+### Upload de Imagens
 - Upload de fotos em todas as seções
+- **NOVO: Campo de descrição** para cada imagem
 - Suporte para obras, materiais, transações e equipe
-- Validação de tipo e tamanho de arquivo
+- Validação de tipo e tamanho de arquivo (10MB)
 - Armazenamento seguro em pasta uploads/
 
 ## Arquitetura
@@ -68,22 +87,27 @@ Sistema web completo de gerenciamento de construção desenvolvido com PHP (back
 - Upload de arquivos configurado
 - Validação e sanitização de dados
 - Sistema de auditoria automático
+- Geração de códigos únicos para transações
 
 ### Frontend
 - HTML5 semântico
 - CSS3 responsivo com cores da Pacheco (laranja #F5A623 e azul #2E3B5B)
 - JavaScript vanilla para interações dinâmicas
-- Upload assíncrono de imagens
+- Upload assíncrono de imagens e documentos
 - Interface intuitiva com modais
+- Biblioteca html2pdf.js para geração de PDF
 
 ### Banco de Dados PostgreSQL
 **Tabelas principais:**
-- `projects` - Dados das obras (com campo image_path)
-- `materials` - Materiais por obra (com campo image_path)
-- `transactions` - Movimentações financeiras (com campo image_path)
-- `team_members` - Membros da equipe (com campo image_path)
+- `projects` - Dados das obras
+- `materials` - Materiais por obra (com inventory_id e transaction_code)
+- `transactions` - Movimentações financeiras (com transaction_code e receipt_path)
+- `team_members` - Membros da equipe
+- `project_team_assignments` - Atribuições de equipe a obras (N:N)
 - `inventory` - Inventário geral da empresa
 - `inventory_movements` - Histórico de movimentações do estoque
+- `documents` - Documentos anexados a registros
+- `images` - Imagens com descrições
 - `audit_history` - Registro de auditoria de mudanças
 
 ## Branding
@@ -96,23 +120,19 @@ Sistema web completo de gerenciamento de construção desenvolvido com PHP (back
 ## Estado Atual
 - ✅ Backend API completo com inventário
 - ✅ Frontend totalmente implementado
-- ✅ Sistema de upload de imagens funcionando
-- ✅ Inventário da empresa com histórico
+- ✅ Sistema de upload de imagens com descrição
+- ✅ Inventário com código único e PDF
+- ✅ Materiais integrados com inventário
+- ✅ Transações com comprovantes
+- ✅ Equipe com múltiplas obras
+- ✅ Sistema de documentos
 - ✅ Sistema de auditoria implementado
 - ✅ Design responsivo com logo Pacheco
-- ✅ Todas as funcionalidades testadas
-
-## Próximos Passos Sugeridos
-- Relatórios financeiros avançados com gráficos
-- Sistema de autenticação e permissões
-- Notificações de estoque baixo
-- Cronograma de obras com timeline
-- Dashboard com gráficos interativos
-- Exportação de relatórios em PDF
 
 ## Tecnologias
 - PHP 8.2
 - PostgreSQL
 - HTML5/CSS3/JavaScript
 - FontAwesome (ícones)
+- html2pdf.js (geração de PDF)
 - Design responsivo mobile-first

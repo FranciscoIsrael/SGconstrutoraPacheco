@@ -355,11 +355,17 @@ async function deleteTeamMember(id) {
 
 async function viewTeamMember(id) {
     try {
-        const response = await fetch(`api/team.php?id=${id}`);
-        const data = await response.json();
+        const [memberRes, assignmentsRes] = await Promise.all([
+            fetch(`api/team.php?id=${id}`),
+            fetch(`api/team-assignments.php?member_id=${id}`)
+        ]);
         
-        if (data.success) {
-            const member = data.data;
+        const memberData = await memberRes.json();
+        const assignmentsData = await assignmentsRes.json();
+        
+        if (memberData.success) {
+            const member = memberData.data;
+            member.assignments = assignmentsData.success ? assignmentsData.data : [];
             showTeamMemberDetailsModal(member);
         }
     } catch (error) {
@@ -368,6 +374,8 @@ async function viewTeamMember(id) {
 }
 
 function showTeamMemberDetailsModal(member) {
+    const assignments = member.assignments || [];
+    
     const modal = document.createElement('div');
     modal.className = 'modal active';
     modal.id = 'team-details-modal';
@@ -401,6 +409,37 @@ function showTeamMemberDetailsModal(member) {
                     </div>
                 </div>
                 
+                <div class="assignments-section">
+                    <div class="section-header">
+                        <h4><i class="fas fa-building"></i> Obras Atribuídas (${assignments.length})</h4>
+                        <button class="btn btn-sm btn-primary" onclick="showAssignToProjectModal(${member.id})">
+                            <i class="fas fa-plus"></i> Atribuir a Obra
+                        </button>
+                    </div>
+                    ${assignments.length > 0 ? `
+                        <table class="table">
+                            <thead>
+                                <tr><th>Obra</th><th>Função</th><th>Tipo Pgto</th><th>Valor</th><th>Ações</th></tr>
+                            </thead>
+                            <tbody>
+                                ${assignments.map(a => `
+                                    <tr>
+                                        <td>${a.project_name}</td>
+                                        <td>${a.role || '-'}</td>
+                                        <td>${getPaymentTypeLabel(a.payment_type)}</td>
+                                        <td class="value-text">${formatCurrency(a.payment_value || 0)}</td>
+                                        <td>
+                                            <button class="btn btn-xs btn-danger" onclick="removeAssignment(${a.id}, ${member.id})">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    ` : '<p class="text-muted text-center">Nenhuma obra atribuída</p>'}
+                </div>
+                
                 ${member.history && member.history.length > 0 ? `
                     <div class="history-section">
                         <h4><i class="fas fa-history"></i> Histórico de Alterações</h4>
@@ -428,6 +467,135 @@ function showTeamMemberDetailsModal(member) {
 
 function showMemberImages(memberId) {
     showImagesModal('team_members', memberId, 'Fotos do Membro');
+}
+
+async function showAssignToProjectModal(memberId) {
+    try {
+        const response = await fetch('api/projects.php');
+        const data = await response.json();
+        
+        if (!data.success) return;
+        
+        const projects = data.data;
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.id = 'assign-project-modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-building"></i> Atribuir a Obra</h3>
+                    <button class="close-btn" onclick="closeModal('assign-project-modal')">&times;</button>
+                </div>
+                <form id="assign-form" onsubmit="saveAssignment(event, ${memberId})">
+                    <div class="form-group">
+                        <label>Selecione a Obra *</label>
+                        <select name="project_id" required>
+                            <option value="">Selecione...</option>
+                            ${projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Função nesta Obra</label>
+                            <input type="text" name="role" placeholder="Ex: Pedreiro, Mestre">
+                        </div>
+                        <div class="form-group">
+                            <label>Tipo de Pagamento</label>
+                            <select name="payment_type">
+                                <option value="">Selecione...</option>
+                                <option value="salario">Salário</option>
+                                <option value="diaria">Diária</option>
+                                <option value="empreita">Empreita</option>
+                                <option value="hora">Por Hora</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Valor (R$)</label>
+                            <input type="number" name="payment_value" step="0.01" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Data de Início</label>
+                            <input type="date" name="start_date" value="${new Date().toISOString().split('T')[0]}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Observações</label>
+                        <textarea name="notes" rows="2"></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('assign-project-modal')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Atribuir</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.getElementById('modal-container').appendChild(modal);
+    } catch (error) {
+        console.error('Error loading projects:', error);
+    }
+}
+
+async function saveAssignment(event, memberId) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const data = {
+        team_member_id: memberId,
+        project_id: parseInt(form.project_id.value),
+        role: form.role.value,
+        payment_type: form.payment_type.value,
+        payment_value: parseFloat(form.payment_value.value) || 0,
+        start_date: form.start_date.value,
+        notes: form.notes.value
+    };
+    
+    try {
+        const response = await fetch('api/team-assignments.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('Membro atribuído à obra com sucesso!', 'success');
+            closeModal('assign-project-modal');
+            closeModal('team-details-modal');
+            viewTeamMember(memberId);
+        } else {
+            showNotification(result.error || 'Erro ao atribuir', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving assignment:', error);
+        showNotification('Erro ao atribuir membro', 'error');
+    }
+}
+
+async function removeAssignment(assignmentId, memberId) {
+    if (!confirm('Remover este membro desta obra?')) return;
+    
+    try {
+        const response = await fetch(`api/team-assignments.php?id=${assignmentId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('Atribuição removida!', 'success');
+            closeModal('team-details-modal');
+            viewTeamMember(memberId);
+        } else {
+            showNotification(result.error || 'Erro ao remover', 'error');
+        }
+    } catch (error) {
+        console.error('Error removing assignment:', error);
+        showNotification('Erro ao remover atribuição', 'error');
+    }
 }
 
 async function showTeamHistory() {

@@ -1,5 +1,4 @@
 <?php
-// API endpoints for materials management
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
@@ -46,12 +45,17 @@ switch ($method) {
         sendErrorResponse('Method not allowed', 405);
 }
 
+function generateTransactionCode($prefix = 'MAT') {
+    return $prefix . '-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
+}
+
 function getMaterialsByProject($db, $projectId) {
     try {
         $stmt = $db->prepare("
-            SELECT m.*, p.name as project_name 
+            SELECT m.*, p.name as project_name, i.name as inventory_name
             FROM materials m 
             JOIN projects p ON m.project_id = p.id 
+            LEFT JOIN inventory i ON m.inventory_id = i.id
             WHERE m.project_id = ? 
             ORDER BY m.created_at DESC
         ");
@@ -97,21 +101,80 @@ function createMaterial($db) {
     }
     
     try {
+        $db->beginTransaction();
+        
+        $transactionCode = generateTransactionCode('MAT');
+        $inventoryId = $input['inventory_id'] ?? null;
+        
+        if ($inventoryId) {
+            $checkStmt = $db->prepare("SELECT quantity, unit_cost, name FROM inventory WHERE id = ?");
+            $checkStmt->execute([$inventoryId]);
+            $invItem = $checkStmt->fetch();
+            
+            if (!$invItem) {
+                $db->rollBack();
+                sendErrorResponse('Item de inventário não encontrado');
+                return;
+            }
+            
+            if ($invItem['quantity'] < $input['quantity']) {
+                $db->rollBack();
+                sendErrorResponse('Quantidade insuficiente no inventário');
+                return;
+            }
+            
+            $updateInv = $db->prepare("UPDATE inventory SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $updateInv->execute([$input['quantity'], $inventoryId]);
+            
+            $movementCode = generateTransactionCode('INV');
+            $movementStmt = $db->prepare("
+                INSERT INTO inventory_movements (transaction_code, inventory_id, project_id, movement_type, quantity, destination, notes, movement_date)
+                VALUES (?, ?, ?, 'out', ?, 'obra', ?, CURRENT_DATE)
+            ");
+            $movementStmt->execute([
+                $movementCode,
+                $inventoryId,
+                $input['project_id'],
+                $input['quantity'],
+                'Material enviado para obra - ' . $transactionCode
+            ]);
+            
+            if (empty($input['cost'])) {
+                $input['cost'] = $invItem['unit_cost'];
+            }
+            if (empty($input['name'])) {
+                $input['name'] = $invItem['name'];
+            }
+        }
+        
         $stmt = $db->prepare("
-            INSERT INTO materials (project_id, name, quantity, unit, cost) 
-            VALUES (?, ?, ?, ?, ?) RETURNING id
+            INSERT INTO materials (project_id, name, description, quantity, unit, cost, inventory_id, transaction_code, image_path) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
         ");
         $stmt->execute([
             $input['project_id'],
             sanitizeInput($input['name']),
+            sanitizeInput($input['description'] ?? ''),
             $input['quantity'],
             sanitizeInput($input['unit'] ?? 'unidade'),
-            $input['cost']
+            $input['cost'],
+            $inventoryId,
+            $transactionCode,
+            sanitizeInput($input['image_path'] ?? null)
         ]);
         
         $materialId = $stmt->fetchColumn();
-        sendSuccessResponse(['id' => $materialId, 'message' => 'Material created successfully']);
+        
+        logAudit($db, 'materials', $materialId, 'create', null, $input);
+        
+        $db->commit();
+        sendSuccessResponse([
+            'id' => $materialId, 
+            'transaction_code' => $transactionCode,
+            'message' => 'Material criado com sucesso'
+        ]);
     } catch (PDOException $e) {
+        $db->rollBack();
         sendErrorResponse('Failed to create material: ' . $e->getMessage());
     }
 }
@@ -125,20 +188,27 @@ function updateMaterial($db, $id) {
     }
     
     try {
+        $oldStmt = $db->prepare("SELECT * FROM materials WHERE id = ?");
+        $oldStmt->execute([$id]);
+        $oldData = $oldStmt->fetch();
+        
         $stmt = $db->prepare("
             UPDATE materials 
-            SET name = ?, quantity = ?, unit = ?, cost = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, description = ?, quantity = ?, unit = ?, cost = ?, image_path = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ");
         $stmt->execute([
             sanitizeInput($input['name']),
+            sanitizeInput($input['description'] ?? ''),
             $input['quantity'],
             sanitizeInput($input['unit'] ?? 'unidade'),
             $input['cost'],
+            sanitizeInput($input['image_path'] ?? $oldData['image_path']),
             $id
         ]);
         
         if ($stmt->rowCount() > 0) {
+            logAudit($db, 'materials', $id, 'update', $oldData, $input);
             sendSuccessResponse(['message' => 'Material updated successfully']);
         } else {
             sendErrorResponse('Material not found', 404);
@@ -150,10 +220,15 @@ function updateMaterial($db, $id) {
 
 function deleteMaterial($db, $id) {
     try {
-        $stmt = $db->prepare("DELETE FROM materials WHERE id = ?");
+        $stmt = $db->prepare("SELECT * FROM materials WHERE id = ?");
         $stmt->execute([$id]);
+        $material = $stmt->fetch();
         
-        if ($stmt->rowCount() > 0) {
+        if ($material) {
+            $deleteStmt = $db->prepare("DELETE FROM materials WHERE id = ?");
+            $deleteStmt->execute([$id]);
+            
+            logAudit($db, 'materials', $id, 'delete', $material, null);
             sendSuccessResponse(['message' => 'Material deleted successfully']);
         } else {
             sendErrorResponse('Material not found', 404);
