@@ -71,17 +71,23 @@ function getAllTeamMembers($db) {
 function getTeamByProject($db, $projectId) {
     try {
         $stmt = $db->prepare("
-            SELECT tm.*, p.name as project_name 
+            SELECT DISTINCT tm.*, p.name as project_name,
+                   COALESCE(pta.payment_type, tm.payment_type) as assignment_payment_type,
+                   COALESCE(pta.payment_value, tm.payment_value) as assignment_payment_value,
+                   COALESCE(pta.role, tm.role) as assignment_role
             FROM team_members tm 
-            LEFT JOIN projects p ON tm.project_id = p.id 
-            WHERE tm.project_id = ? 
+            LEFT JOIN projects p ON p.id = ?
+            LEFT JOIN project_team_assignments pta ON pta.team_member_id = tm.id AND pta.project_id = ?
+            WHERE tm.project_id = ? OR pta.project_id = ?
             ORDER BY tm.name ASC
         ");
-        $stmt->execute([$projectId]);
+        $stmt->execute([$projectId, $projectId, $projectId, $projectId]);
         $teamMembers = $stmt->fetchAll();
         
         foreach ($teamMembers as &$member) {
-            $member['payment_value'] = (float)($member['payment_value'] ?? 0);
+            $member['payment_value'] = (float)($member['assignment_payment_value'] ?? $member['payment_value'] ?? 0);
+            $member['payment_type'] = $member['assignment_payment_type'] ?? $member['payment_type'];
+            $member['role'] = $member['assignment_role'] ?? $member['role'];
             $member['images'] = getEntityImages($db, 'team_members', $member['id']);
         }
         
