@@ -1,0 +1,19 @@
+# Ambiente / segredos
+.env
+.local
+
+# Uploads de usuários (não versionar arquivos)
+uploads/*
+!uploads/.gitkeep
+
+# Logs e temporários
+*.log
+*.tmp
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.vscode/
+.idea/
